@@ -362,7 +362,7 @@ func TestAuthOptionsFromData(t *testing.T) {
 			url, err := url.Parse(tt.URL)
 			g.Expect(err).ToNot(HaveOccurred())
 
-			got, err := NewAuthOptions(*url, tt.data)
+			got, err := NewAuthOptions(*url, tt.data, false)
 			if tt.wantErr != "" {
 				g.Expect(err).To(HaveOccurred())
 				g.Expect(err.Error()).To(ContainSubstring(tt.wantErr))

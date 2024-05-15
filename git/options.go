@@ -17,8 +17,13 @@ limitations under the License.
 package git
 
 import (
+	"context"
 	"fmt"
 	"net/url"
+
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/cloud"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
+	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 )
 
 const (
@@ -84,7 +89,7 @@ func (o AuthOptions) Validate() error {
 // NewAuthOptions constructs an AuthOptions object from the given map and URL.
 // If the map is empty, it returns a minimal AuthOptions object after
 // validating the result.
-func NewAuthOptions(u url.URL, data map[string][]byte) (*AuthOptions, error) {
+func NewAuthOptions(u url.URL, data map[string][]byte, azure bool) (*AuthOptions, error) {
 	opts := newAuthOptions(u)
 	if len(data) > 0 {
 		var caBytes []byte
@@ -110,6 +115,22 @@ func NewAuthOptions(u url.URL, data map[string][]byte) (*AuthOptions, error) {
 			opts.CAFile = caBytes
 			opts.Username = string(data["username"])
 			opts.Password = string(data["password"])
+		}
+	}
+
+	if azure {
+		tokenCred, err := azidentity.NewDefaultAzureCredential(nil)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get azure credential : %w", err)
+		}
+
+		configurationEnvironment := cloud.AzurePublic
+		armToken, err := tokenCred.GetToken(context.Background(), policy.TokenRequestOptions{
+			Scopes: []string{configurationEnvironment.Services[cloud.ResourceManager].Endpoint + "/" + ".default"},
+		})
+
+		if err != nil {
+			opts.BearerToken = string(armToken.Token)
 		}
 	}
 
