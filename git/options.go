@@ -130,8 +130,10 @@ func NewAuthOptions(u url.URL, data map[string][]byte, azure bool) (*AuthOptions
 		})
 
 		if err != nil {
-			opts.BearerToken = string(armToken.Token)
+			return nil, fmt.Errorf("failed to get azure token : %w", err)
 		}
+
+		opts.BearerToken = string(armToken.Token)
 	}
 
 	if opts.Transport != SSH && opts.Username == "" {
