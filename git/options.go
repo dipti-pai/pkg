@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"net/url"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/cloud"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 )
@@ -123,8 +124,9 @@ func NewAuthOptions(u url.URL, data map[string][]byte, azure bool) (*AuthOptions
 			return nil, fmt.Errorf("failed to get azure credential : %w", err)
 		}
 
+		var configurationEnvironment = cloud.AzurePublic
 		armToken, err := tokenCred.GetToken(context.Background(), policy.TokenRequestOptions{
-			Scopes: []string{"499b84ac-1321-427f-aa17-267ca6975798" + "/" + ".default"},
+			Scopes: []string{configurationEnvironment.Services[cloud.ResourceManager].Endpoint + "/" + ".default"},
 		})
 
 		if err != nil {
