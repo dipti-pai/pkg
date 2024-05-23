@@ -118,20 +118,11 @@ func NewAuthOptions(u url.URL, data map[string][]byte, azure bool) (*AuthOptions
 	}
 
 	if azure {
-		tokenCred, err := azidentity.NewDefaultAzureCredential(nil)
+		bearerToken, err := getAzureToken()
 		if err != nil {
-			return nil, fmt.Errorf("failed to get azure credential : %w", err)
+			return nil, err
 		}
-
-		armToken, err := tokenCred.GetToken(context.Background(), policy.TokenRequestOptions{
-			Scopes: []string{"499b84ac-1321-427f-aa17-267ca6975798" + "/" + ".default"},
-		})
-
-		if err != nil {
-			return nil, fmt.Errorf("failed to get azure token : %w", err)
-		}
-
-		opts.BearerToken = string(armToken.Token)
+		opts.BearerToken = bearerToken
 	}
 
 	if opts.Transport != SSH && opts.Username == "" {
@@ -147,6 +138,22 @@ func NewAuthOptions(u url.URL, data map[string][]byte, azure bool) (*AuthOptions
 	}
 
 	return opts, nil
+}
+
+func getAzureToken() (string, error) {
+	tokenCred, err := azidentity.NewDefaultAzureCredential(nil)
+	if err != nil {
+		return "", fmt.Errorf("failed to get azure credential : %w", err)
+	}
+
+	armToken, err := tokenCred.GetToken(context.Background(), policy.TokenRequestOptions{
+		Scopes: []string{"499b84ac-1321-427f-aa17-267ca6975798" + "/" + ".default"},
+	})
+
+	if err != nil {
+		return "", fmt.Errorf("failed to get azure token : %w", err)
+	}
+	return string(armToken.Token), nil
 }
 
 // newAuthOptions returns a minimal AuthOptions object constructed from
