@@ -25,6 +25,8 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/fluxcd/pkg/git"
+	"github.com/fluxcd/pkg/git/repository"
 	"github.com/go-git/go-billy/v5"
 	"github.com/go-git/go-billy/v5/memfs"
 	"github.com/go-git/go-billy/v5/osfs"
@@ -38,9 +40,7 @@ import (
 	"github.com/go-git/go-git/v5/storage"
 	"github.com/go-git/go-git/v5/storage/filesystem"
 	"github.com/go-git/go-git/v5/storage/memory"
-
-	"github.com/fluxcd/pkg/git"
-	"github.com/fluxcd/pkg/git/repository"
+	"github.com/go-logr/logr"
 )
 
 func init() {
@@ -251,6 +251,49 @@ func (g *Client) Clone(ctx context.Context, url string, cfg repository.CloneConf
 		return nil, err
 	}
 
+	var (
+		providerCreds *git.Credentials
+		expiresOn     time.Time
+		err           error
+	)
+
+	if g.authOpts != nil && g.authOpts.ProviderOpts != nil && g.authOpts.BearerToken == "" {
+		log := logr.FromContextOrDiscard(ctx)
+		// If cache is specified, try cloning with cached credential if it exists,
+		// else fallback to fetching credentials from provider.
+		if g.authOpts.Cache != nil {
+			cachedCreds, exists, err := getObjectFromCache(g.authOpts.Cache, url)
+			if err != nil {
+				log.Error(err, "failed to get credential object from cache")
+			}
+
+			if exists {
+				g.authOpts.BearerToken = cachedCreds.BearerToken
+				commit, err := g.clone(ctx, url, cfg)
+				if err == nil {
+					return commit, nil
+				}
+				log.Error(err, "failed to clone using cached access token, invalidating.")
+				invalidateObjectInCache(g.authOpts.Cache, cachedCreds, url)
+			}
+		}
+		providerCreds, expiresOn, err = git.GetCredentials(ctx, url, g.authOpts.ProviderOpts)
+		if err != nil {
+			return nil, err
+		}
+		g.authOpts.BearerToken = providerCreds.BearerToken
+	}
+
+	commit, err := g.clone(ctx, url, cfg)
+	if err == nil && providerCreds != nil && g.authOpts.Cache != nil {
+		// Cache credentials if clone was successful with provider credentials
+		cacheObject(g.authOpts.Cache, *providerCreds, url, expiresOn)
+	}
+
+	return commit, err
+}
+
+func (g *Client) clone(ctx context.Context, url string, cfg repository.CloneConfig) (*git.Commit, error) {
 	checkoutStrat := cfg.CheckoutStrategy
 	switch {
 	case checkoutStrat.Commit != "":
