@@ -91,10 +91,12 @@ func getWISAAnnotationsGCP(output map[string]*tfjson.StateOutput) (map[string]st
 	}, nil
 }
 
-func getTestConfigGCP(outputs map[string]*tfjson.StateOutput) (*testConfig, error) {
+// When implemented, getGitTestConfigGCP would return the git-specific test config for GCP
+func getGitTestConfigGCP(outputs map[string]*tfjson.StateOutput) (*gitTestConfig, error) {
 	return nil, fmt.Errorf("NotImplemented for GCP")
 }
 
+// When implemented, givePermissionsToRepositoryGCP would grant the required permissions to Google cloud source repositories
 func givePermissionsToRepositoryGCP(output map[string]*tfjson.StateOutput) error {
 	return fmt.Errorf("NotImplemented for GCP")
 }

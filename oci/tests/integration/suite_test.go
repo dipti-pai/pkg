@@ -47,8 +47,7 @@ const (
 	terraformPathAWS = "./terraform/aws"
 	// terraformPathAzure is the path to the terraform working directory
 	// containing the azure terraform configurations.
-	terraformPathAzureOci = "./terraform/azure/oci"
-	terraformPathAzureGit = "./terraform/azure/git"
+	terraformPathAzure = "./terraform/azure"
 
 	// terraformPathGCP is the path to the terraform working directory
 	// containing the gcp terraform configurations.
@@ -70,7 +69,7 @@ const (
 
 var (
 	// supportedCategories are the test categories that can be run.
-	supportedCategories = []string{"oci", "git"}
+	supportedCategories = []string{"oci", "git", "all"}
 
 	// supportedOciProviders are the providers supported by the test.
 	supportedOciProviders = []string{"aws", "azure", "gcp"}
@@ -127,8 +126,8 @@ var (
 	// enableWI is set to true when the TF_VAR_enable_wi is set to "true", so the tests run for Workload Identtty
 	enableWI bool
 
-	// cfg is a struct containing different variables needed for the test.
-	cfg *testConfig
+	// cfg is a struct containing different variables needed for running git tests.
+	cfg *gitTestConfig
 )
 
 // registryLoginFunc is used to perform registry login against a provider based
@@ -150,11 +149,11 @@ type getWISAAnnotations func(output map[string]*tfjson.StateOutput) (map[string]
 // givePermissionsToRepository calls provider specific API to add additional permissions to the git repository/project
 type givePermissionsToRepository func(output map[string]*tfjson.StateOutput) error
 
-// getTestConfig gets the configuration for the tests
-type getTestConfig func(output map[string]*tfjson.StateOutput) (*testConfig, error)
+// getGitTestConfig gets the configuration for the tests
+type getGitTestConfig func(output map[string]*tfjson.StateOutput) (*gitTestConfig, error)
 
-// testConfig hold different variable that will be needed by the different test functions.
-type testConfig struct {
+// gitTestConfig hold different variable that will be needed by the different test functions.
+type gitTestConfig struct {
 	// authentication info for git repositories
 	gitPat                           string
 	gitUsername                      string
@@ -181,8 +180,8 @@ type ProviderConfig struct {
 	getWISAAnnotations getWISAAnnotations
 	// givePermissionsToRepository is used to give the identity access to the Git repository
 	givePermissionsToRepository givePermissionsToRepository
-	// getTestConfig is used to return provider specific test configuration
-	getTestConfig getTestConfig
+	// getGitTestConfig is used to return provider specific test configuration
+	getGitTestConfig getGitTestConfig
 }
 
 var letterRunes = []rune("abcdefghijklmnopqrstuvwxyz1234567890")
@@ -214,27 +213,26 @@ func TestMain(m *testing.M) {
 		log.Fatalf("Unsupported category %q, must be one of %v", *category, supportedCategories)
 	}
 
-	var supportedProviders []string
 	if *category == "oci" {
-		supportedProviders = supportedOciProviders
 		enableOci = true
 	} else if *category == "git" {
-		supportedProviders = supportedOciProviders
 		enableGit = true
+	} else if *category == "all" {
+		enableGit = true
+		enableOci = true
 	}
 
 	// Validate the provider.
 	if *targetProvider == "" {
-		log.Fatalf("-provider flag must be set to one of %v", supportedProviders)
+		log.Fatalf("-provider flag must be set to one of %v for git or %v for oci", supportedGitProviders, supportedOciProviders)
 	}
-	var supported bool
-	for _, p := range supportedProviders {
-		if p == *targetProvider {
-			supported = true
-		}
+
+	if enableGit {
+		validateTargetProvider(*targetProvider, supportedGitProviders)
 	}
-	if !supported {
-		log.Fatalf("Unsupported provider %q, must be one of %v", *targetProvider, supportedProviders)
+
+	if enableOci {
+		validateTargetProvider(*targetProvider, supportedOciProviders)
 	}
 
 	enableWI = os.Getenv("TF_VAR_enable_wi") == "true"
@@ -324,11 +322,10 @@ func TestMain(m *testing.M) {
 		log.Println("OCI is enabled, push oci app and test images")
 		pushAppAndTestImagesOci(ctx, providerCfg, output, localImgs)
 	}
-
 	if enableGit {
 		log.Println("Git is enabled, push git app image and get test config")
 		pushAppImageGit(ctx, providerCfg, output, localImgs)
-		cfg, err = providerCfg.getTestConfig(output)
+		cfg, err = providerCfg.getGitTestConfig(output)
 	}
 
 	if enableWI {
@@ -352,6 +349,18 @@ func TestMain(m *testing.M) {
 	exitCode = m.Run()
 }
 
+func validateTargetProvider(targetProvider string, supportedProviders []string) {
+	var supported bool
+	for _, p := range supportedProviders {
+		if p == targetProvider {
+			supported = true
+		}
+	}
+	if !supported {
+		log.Fatalf("Unsupported provider %q, must be one of %v", targetProvider, supportedProviders)
+	}
+}
+
 // getProviderConfig returns the test configuration of supported providers.
 func getProviderConfig(provider string) *ProviderConfig {
 	switch provider {
@@ -363,7 +372,7 @@ func getProviderConfig(provider string) *ProviderConfig {
 			createKubeconfig:            createKubeconfigEKS,
 			getWISAAnnotations:          getWISAAnnotationsAWS,
 			givePermissionsToRepository: givePermissionsToRepositoryAWS,
-			getTestConfig:               getTestConfigAWS,
+			getGitTestConfig:            getGitTestConfigAWS,
 		}
 	case "azure":
 		providerCfg := &ProviderConfig{
@@ -372,14 +381,8 @@ func getProviderConfig(provider string) *ProviderConfig {
 			createKubeconfig:            createKubeConfigAKS,
 			getWISAAnnotations:          getWISAAnnotationsAzure,
 			givePermissionsToRepository: givePermissionsToRepositoryAzure,
-			getTestConfig:               getTestConfigAzure,
-		}
-		if enableOci {
-			providerCfg.terraformPath = terraformPathAzureOci
-		} else if enableGit {
-			providerCfg.terraformPath = terraformPathAzureGit
-		} else {
-			panic("Invalid configuration")
+			getGitTestConfig:            getGitTestConfigAzure,
+			terraformPath:               terraformPathAzure,
 		}
 		return providerCfg
 	case "gcp":
@@ -390,7 +393,7 @@ func getProviderConfig(provider string) *ProviderConfig {
 			createKubeconfig:            createKubeconfigGKE,
 			getWISAAnnotations:          getWISAAnnotationsGCP,
 			givePermissionsToRepository: givePermissionsToRepositoryGCP,
-			getTestConfig:               getTestConfigGCP,
+			getGitTestConfig:            getGitTestConfigGCP,
 		}
 	}
 	return nil

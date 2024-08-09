@@ -212,9 +212,9 @@ func givePermissionsToRepositoryAzure(outputs map[string]*tfjson.StateOutput) er
 	return nil
 }
 
-// getTestConfigAzure returns the test config used to setup the git repository
-func getTestConfigAzure(outputs map[string]*tfjson.StateOutput) (*testConfig, error) {
-	config := &testConfig{
+// getGitTestConfigAzure returns the test config used to setup the git repository
+func getGitTestConfigAzure(outputs map[string]*tfjson.StateOutput) (*gitTestConfig, error) {
+	config := &gitTestConfig{
 		defaultGitTransport:   git.HTTP,
 		gitUsername:           git.DefaultPublicKeyAuthUser,
 		gitPat:                outputs["azure_devops_access_token"].Value.(string),

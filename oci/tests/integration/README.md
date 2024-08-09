@@ -292,6 +292,7 @@ export TF_VAR_enable_wi=
 They have been included in the `.env.sample` and you can simply uncomment it.
 
 The git integration tests require workload identity to be enabled.
+
 ## Debugging the tests
 
 For debugging environment provisioning, enable verbose output with `-verbose`

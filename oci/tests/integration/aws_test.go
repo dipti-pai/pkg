@@ -99,10 +99,12 @@ func getWISAAnnotationsAWS(output map[string]*tfjson.StateOutput) (map[string]st
 	}, nil
 }
 
-func getTestConfigAWS(outputs map[string]*tfjson.StateOutput) (*testConfig, error) {
+// When implemented, getGitTestConfigAws would return the git-specific test config for AWS
+func getGitTestConfigAWS(outputs map[string]*tfjson.StateOutput) (*gitTestConfig, error) {
 	return nil, fmt.Errorf("NotImplemented for AWS")
 }
 
+// When implemented, givePermissionsToRepositoryAWS would grant the required permissions to AWS CodeCommit repository
 func givePermissionsToRepositoryAWS(output map[string]*tfjson.StateOutput) error {
 	return fmt.Errorf("NotImplemented for AWS")
 }
