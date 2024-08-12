@@ -21,6 +21,7 @@ import (
 	"testing"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/cloud"
 	. "github.com/onsi/gomega"
 	"k8s.io/utils/pointer"
 )
@@ -40,7 +41,7 @@ func TestGetProviderToken(t *testing.T) {
 				Token: "foo",
 			},
 			opts:      []ProviderOptFunc{WithAzureDevOpsScope()},
-			wantScope: "499b84ac-1321-427f-aa17-267ca6975798/.default",
+			wantScope: AzureDevOpsRestApiScope,
 			wantToken: "foo",
 		},
 		{
@@ -48,14 +49,14 @@ func TestGetProviderToken(t *testing.T) {
 			tokenCred: &FakeTokenCredential{
 				Token: "foo",
 			},
-			wantErr: errors.New("error scopes must be specified"),
+			wantScope: cloud.AzurePublic.Services[cloud.ResourceManager].Endpoint + "/" + ".default",
+			wantToken: "foo",
 		},
 		{
 			name: "error",
 			tokenCred: &FakeTokenCredential{
 				Err: errors.New("oh no!"),
 			},
-			opts:    []ProviderOptFunc{WithAzureDevOpsScope()},
 			wantErr: errors.New("oh no!"),
 		},
 	}

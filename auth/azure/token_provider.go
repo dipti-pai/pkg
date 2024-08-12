@@ -17,9 +17,9 @@ package azure
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/cloud"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 )
@@ -54,23 +54,30 @@ func WithCredential(cred azcore.TokenCredential) ProviderOptFunc {
 	}
 }
 
+// WithAzureDevOpsScope() configures the scope to access Azure DevOps Rest API
+// needed to access Azure DevOps Repositories
 func WithAzureDevOpsScope() ProviderOptFunc {
 	return func(p *Provider) {
 		p.scopes = []string{AzureDevOpsRestApiScope}
 	}
 }
 
+// GetToken requests an access token from Microsoft Entra ID by using a default
+// credential chain.
+// https://pkg.go.dev/github.com/Azure/azure-sdk-for-go/sdk/azidentity#NewDefaultAzureCredential
+// The default scope is to ARM endpoint in Azure Cloud. The scope is overridden
+// using ProviderOptFunc.
 func (p *Provider) GetToken(ctx context.Context) (*azcore.AccessToken, error) {
-	if len(p.scopes) == 0 {
-		return nil, fmt.Errorf("error scopes must be specified")
-	}
-
 	if p.credential == nil {
 		cred, err := azidentity.NewDefaultAzureCredential(nil)
 		if err != nil {
 			return nil, err
 		}
 		p.credential = cred
+	}
+
+	if len(p.scopes) == 0 {
+		p.scopes = []string{cloud.AzurePublic.Services[cloud.ResourceManager].Endpoint + "/" + ".default"}
 	}
 
 	accessToken, err := p.credential.GetToken(ctx, policy.TokenRequestOptions{

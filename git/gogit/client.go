@@ -39,6 +39,7 @@ import (
 	"github.com/go-git/go-git/v5/storage/filesystem"
 	"github.com/go-git/go-git/v5/storage/memory"
 
+	authGit "github.com/fluxcd/pkg/auth/git"
 	"github.com/fluxcd/pkg/git"
 	"github.com/fluxcd/pkg/git/repository"
 )
@@ -78,6 +79,8 @@ type Client struct {
 	useDefaultKnownHosts bool
 	singleBranch         bool
 	proxy                transport.ProxyOptions
+	provider             string
+	providerAuthOpts     *authGit.AuthOptions
 }
 
 var _ repository.Client = &Client{}
@@ -205,6 +208,15 @@ func WithProxy(opts transport.ProxyOptions) ClientOption {
 	}
 }
 
+// WithProvider configures the provider settings to be used for
+func WithProviderOptions(provider string, providerAuthOpts *authGit.AuthOptions) ClientOption {
+	return func(c *Client) error {
+		c.provider = provider
+		c.providerAuthOpts = providerAuthOpts
+		return nil
+	}
+}
+
 func (g *Client) Init(ctx context.Context, url, branch string) error {
 	if err := g.validateUrl(url); err != nil {
 		return err
@@ -244,6 +256,25 @@ func (g *Client) Init(ctx context.Context, url, branch string) error {
 
 	g.repository = r
 	return nil
+}
+
+func (g *Client) CloneWithProvider(ctx context.Context, url string, cfg repository.CloneConfig) (*git.Commit, error) {
+	var (
+		providerCreds *authGit.Credentials
+		err           error
+	)
+
+	// if BearerToken is specified in the authOpts, do not try to fetch a token from provider
+	if g.authOpts.BearerToken == "" && g.provider != "" {
+		// TODO: Once caching is added, fetch from the cache before fetching token from provider
+		providerCreds, err = authGit.GetCredentials(ctx, url, g.provider, g.providerAuthOpts)
+		if err != nil {
+			return nil, err
+		}
+		g.authOpts.BearerToken = providerCreds.BearerToken
+	}
+
+	return g.Clone(ctx, url, cfg)
 }
 
 func (g *Client) Clone(ctx context.Context, url string, cfg repository.CloneConfig) (*git.Commit, error) {
