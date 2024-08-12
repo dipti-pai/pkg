@@ -131,18 +131,11 @@ func checkOci(ctx context.Context) {
 }
 
 func checkGit(ctx context.Context) {
-	log.Println("Validating git oidc by cloning repo ", *repo)
-	providerCreds, err := getProviderCreds(ctx, *repo, *provider)
-	if err != nil {
-		panic(err)
-	}
-
-	authData := providerCreds.ToSecretData()
 	u, err := url.Parse(*repo)
 	if err != nil {
 		panic(err)
 	}
-
+	var authData map[string][]byte
 	authOpts, err := git.NewAuthOptions(*u, authData)
 	if err != nil {
 		panic(err)
@@ -153,12 +146,18 @@ func checkGit(ctx context.Context) {
 		panic(err)
 	}
 	defer os.RemoveAll(cloneDir)
-	c, err := gogit.NewClient(cloneDir, authOpts, gogit.WithSingleBranch(false), gogit.WithDiskStorage())
+	providerAuthOpts, err := getProviderAuthOptions(*provider)
 	if err != nil {
 		panic(err)
 	}
 
-	_, err = c.Clone(ctx, *repo, repository.CloneConfig{
+	c, err := gogit.NewClient(cloneDir, authOpts, gogit.WithSingleBranch(false), gogit.WithDiskStorage(),
+		gogit.WithProviderOptions(*provider, providerAuthOpts))
+	if err != nil {
+		panic(err)
+	}
+
+	_, err = c.CloneWithProvider(ctx, *repo, repository.CloneConfig{
 		CheckoutStrategy: repository.CheckoutStrategy{
 			Branch: "main",
 		},
@@ -182,28 +181,17 @@ func checkGit(ctx context.Context) {
 	log.Println(string(contents))
 }
 
-func getProviderCreds(ctx context.Context, url, provider string) (*gitAuth.Credentials, error) {
-	var providerCreds *gitAuth.Credentials
+func getProviderAuthOptions(provider string) (*gitAuth.AuthOptions, error) {
+	authOpts := &gitAuth.AuthOptions{}
 	switch provider {
 	case auth.ProviderAzure:
-		authOpts := &gitAuth.AuthOptions{}
 		authOpts.ProviderOptions = gitAuth.ProviderOptions{
 			AzureOpts: []azure.ProviderOptFunc{
 				azure.WithAzureDevOpsScope(),
 			},
 		}
-		c, err := cache.New(10, cache.StoreObjectKeyFunc,
-			cache.WithCleanupInterval[cache.StoreObject[gitAuth.Credentials]](5*time.Second))
-		if err != nil {
-			return nil, err
-		}
-		authOpts.Cache = c
-		providerCreds, err = gitAuth.GetCredentials(ctx, url, provider, authOpts)
-		if err != nil {
-			return nil, err
-		}
 		// Add other providers here
 	}
 
-	return providerCreds, nil
+	return authOpts, nil
 }

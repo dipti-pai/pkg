@@ -83,8 +83,6 @@ github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSs
 github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc h1:U9qPSI2PIWSS1VwoXQT9A3Wy9MM3WgvqSxFWenqJduM=
 github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
-github.com/dipti-pai/pkg/auth v0.0.0-20240712195748-b7425e149afd h1:E1ZHKeQiL57c73F6EpAhLTXVdGWBoJEZ4Kmzz/l6ucI=
-github.com/dipti-pai/pkg/auth v0.0.0-20240712195748-b7425e149afd/go.mod h1:dkgECFjmpiIoSghxTJP97LERCVN7NfwjwMJrGOnqQ90=
 github.com/docker/cli v24.0.9+incompatible h1:OxbimnP/z+qVjDLpq9wbeFU3Nc30XhSe+LkwYQisD50=
 github.com/docker/cli v24.0.9+incompatible/go.mod h1:JLrzqnKDaYBop7H2jaqPtU4hHvMKP+vjCwu2uszcLI8=
 github.com/docker/distribution v2.8.2+incompatible h1:T3de5rq0dB1j30rp0sA2rER+m322EBzniBPB6ZIzuh8=
@@ -113,8 +111,6 @@ github.com/fluxcd/gitkit v0.6.0 h1:iNg5LTx6ePo+Pl0ZwqHTAkhbUHxGVSY3YCxCdw7VIFg=
 github.com/fluxcd/gitkit v0.6.0/go.mod h1:svOHuKi0fO9HoawdK4HfHAJJseZDHHjk7I3ihnCIqNo=
 github.com/fluxcd/pkg/git v0.19.0 h1:zIv+GAT0ieIUpnGBVi3Bhax/qq4Rr28BW7Jv4DTt6zE=
 github.com/fluxcd/pkg/git v0.19.0/go.mod h1:wkqUOSrTjtsVVk/gC6/7RxVpi9GcqAA+7O5HVJF5S14=
-github.com/fluxcd/pkg/git/gogit v0.19.0 h1:SdoNAmC/HTPXniQjp609X59rCsBiA+Sdq1Hv8SnYC6I=
-github.com/fluxcd/pkg/git/gogit v0.19.0/go.mod h1:8kOmrNMjq8daQTVLhp6klhuoY8+s81gydM0MozDjaHM=
 github.com/fluxcd/pkg/gittestserver v0.12.0 h1:QGbIVyje9U6urSAeDw3diKb/5wdA+Cnw1YJN+3Zflaw=
 github.com/fluxcd/pkg/gittestserver v0.12.0/go.mod h1:Eh82e+kzKdhpafnUwR5oCBmxqAqhF5QuCn290AFntPM=
 github.com/fluxcd/pkg/ssh v0.13.0 h1:lPU1Gst8XIz7AU2dhdqVFaaOWd54/O1LZu62vH4JB/s=

@@ -145,10 +145,15 @@ func testjobExecutionWithArgs(t *testing.T, args []string) {
 	key := client.ObjectKeyFromObject(job)
 
 	g.Expect(testEnv.Client.Create(ctx, job)).To(Succeed())
-	defer func() {
-		background := metav1.DeletePropagationBackground
-		g.Expect(testEnv.Client.Delete(ctx, job, &client.DeleteOptions{PropagationPolicy: &background})).To(Succeed())
-	}()
+
+	// keep the job around for debugging if retain is specified
+	if *retain == false {
+		defer func() {
+			background := metav1.DeletePropagationBackground
+			g.Expect(testEnv.Client.Delete(ctx, job, &client.DeleteOptions{PropagationPolicy: &background})).To(Succeed())
+		}()
+	}
+
 	g.Eventually(func() bool {
 		if err := testEnv.Client.Get(ctx, key, job); err != nil {
 			return false
