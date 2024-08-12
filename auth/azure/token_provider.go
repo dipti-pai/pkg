@@ -67,11 +67,12 @@ func WithAzureDevOpsScope() ProviderOptFunc {
 // https://pkg.go.dev/github.com/Azure/azure-sdk-for-go/sdk/azidentity#NewDefaultAzureCredential
 // The default scope is to ARM endpoint in Azure Cloud. The scope is overridden
 // using ProviderOptFunc.
-func (p *Provider) GetToken(ctx context.Context) (*azcore.AccessToken, error) {
+func (p *Provider) GetToken(ctx context.Context) (azcore.AccessToken, error) {
+	var accessToken azcore.AccessToken
 	if p.credential == nil {
 		cred, err := azidentity.NewDefaultAzureCredential(nil)
 		if err != nil {
-			return nil, err
+			return accessToken, err
 		}
 		p.credential = cred
 	}
@@ -80,12 +81,7 @@ func (p *Provider) GetToken(ctx context.Context) (*azcore.AccessToken, error) {
 		p.scopes = []string{cloud.AzurePublic.Services[cloud.ResourceManager].Endpoint + "/" + ".default"}
 	}
 
-	accessToken, err := p.credential.GetToken(ctx, policy.TokenRequestOptions{
+	return p.credential.GetToken(ctx, policy.TokenRequestOptions{
 		Scopes: p.scopes,
 	})
-	if err != nil {
-		return nil, err
-	}
-
-	return &accessToken, nil
 }

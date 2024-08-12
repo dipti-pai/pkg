@@ -51,7 +51,11 @@ func GetCredentials(ctx context.Context, url string, provider string, authOpts *
 	switch provider {
 	case auth.ProviderAzure:
 		var opts []azure.ProviderOptFunc
-		if authOpts != nil {
+		if authOpts == nil {
+			opts = []azure.ProviderOptFunc{
+				azure.WithAzureDevOpsScope(),
+			}
+		} else {
 			opts = authOpts.ProviderOptions.AzureOpts
 		}
 		azureProvider := azure.NewProvider(opts...)
