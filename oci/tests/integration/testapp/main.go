@@ -24,6 +24,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 
@@ -33,15 +34,12 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
+	"github.com/fluxcd/pkg/auth"
 	"github.com/fluxcd/pkg/cache"
 	"github.com/fluxcd/pkg/git"
 	"github.com/fluxcd/pkg/git/gogit"
 	"github.com/fluxcd/pkg/git/repository"
 	"github.com/fluxcd/pkg/oci/auth/login"
-
-	"github.com/fluxcd/pkg/auth"
-	"github.com/fluxcd/pkg/auth/azure"
-	gitAuth "github.com/fluxcd/pkg/auth/git"
 )
 
 // registry and repo flags are to facilitate testing of two login scenarios:
@@ -61,7 +59,7 @@ func main() {
 	flag.Parse()
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-
+	ctrl.SetLogger(zap.New(zap.UseDevMode(true)))
 	if *category == "oci" {
 		checkOci(ctx)
 	} else if *category == "git" {
@@ -72,7 +70,6 @@ func main() {
 }
 
 func checkOci(ctx context.Context) {
-	ctrl.SetLogger(zap.New(zap.UseDevMode(true)))
 	cache, err := cache.New(5, cache.StoreObjectKeyFunc,
 		cache.WithCleanupInterval[cache.StoreObject[authn.Authenticator]](1*time.Second))
 	if err != nil {
@@ -135,63 +132,69 @@ func checkGit(ctx context.Context) {
 	if err != nil {
 		panic(err)
 	}
-	var authData map[string][]byte
-	authOpts, err := git.NewAuthOptions(*u, authData)
+
+	cache, err := cache.New(5, cache.StoreObjectKeyFunc,
+		cache.WithCleanupInterval[cache.StoreObject[string]](10*time.Second))
 	if err != nil {
 		panic(err)
 	}
 
-	cloneDir, err := os.MkdirTemp("", "test-clone-")
-	if err != nil {
-		panic(err)
-	}
-	defer os.RemoveAll(cloneDir)
-	providerAuthOpts, err := getProviderAuthOptions(*provider)
-	if err != nil {
-		panic(err)
-	}
-
-	c, err := gogit.NewClient(cloneDir, authOpts, gogit.WithSingleBranch(false), gogit.WithDiskStorage(),
-		gogit.WithProviderOptions(*provider, providerAuthOpts))
-	if err != nil {
-		panic(err)
-	}
-
-	_, err = c.CloneWithProvider(ctx, *repo, repository.CloneConfig{
-		CheckoutStrategy: repository.CheckoutStrategy{
-			Branch: "main",
-		},
-	})
-	if err != nil {
-		panic(err)
-	}
-
-	log.Println("Successfully cloned repository ")
-	// Check file from clone.
-	fPath := filepath.Join(cloneDir, "configmap.yaml")
-	if _, err := os.Stat(fPath); os.IsNotExist(err) {
-		panic("expected artifact configmap.yaml to exist in clone dir")
-	}
-
-	// read the whole file at once
-	contents, err := os.ReadFile(fPath)
-	if err != nil {
-		panic(err)
-	}
-	log.Println(string(contents))
-}
-
-func getProviderAuthOptions(provider string) (*gitAuth.AuthOptions, error) {
-	authOpts := &gitAuth.AuthOptions{}
-	switch provider {
-	case auth.ProviderAzure:
-		authOpts.ProviderOptions = gitAuth.ProviderOptions{
-			AzureOpts: []azure.ProviderOptFunc{
-				azure.WithAzureDevOpsScope(),
-			},
+	// Clone twice, first time a new token is fetched, subsequently the cached token is used
+	for i := 0; i < 2; i++ {
+		var authData map[string][]byte
+		authOpts, err := git.NewAuthOptions(*u, authData)
+		if err != nil {
+			panic(err)
 		}
-		// Add other providers here
-	}
+		authOpts.Provider = &git.ProviderAuth{
+			Name:  auth.ProviderAzure,
+			Cache: cache,
+		}
+		cloneDir, err := os.MkdirTemp("", fmt.Sprint("test-clone-", i))
+		if err != nil {
+			panic(err)
+		}
+		defer os.RemoveAll(cloneDir)
+		c, err := gogit.NewClient(cloneDir, authOpts, gogit.WithSingleBranch(false), gogit.WithDiskStorage())
+		if err != nil {
+			panic(err)
+		}
 
-	return authOpts, nil
+		_, err = c.Clone(ctx, *repo, repository.CloneConfig{
+			CheckoutStrategy: repository.CheckoutStrategy{
+				Branch: "main",
+			},
+		})
+		if err != nil {
+			panic(err)
+		}
+
+		log.Println("Successfully cloned repository ")
+		// Check file from clone.
+		fPath := filepath.Join(cloneDir, "configmap.yaml")
+		if _, err := os.Stat(fPath); os.IsNotExist(err) {
+			panic("expected artifact configmap.yaml to exist in clone dir")
+		}
+
+		// read the whole file at once
+		contents, err := os.ReadFile(fPath)
+		if err != nil {
+			panic(err)
+		}
+		log.Println(string(contents))
+		keys, err := cache.ListKeys()
+		if err != nil {
+			panic(err)
+		}
+		log.Println("Keys in cache ", i, keys)
+		if !slices.Contains(keys, *repo) {
+			panic("expected cloned repo url to be present in cache")
+		}
+		val, exists, err := cache.GetByKey(*repo)
+		if err != nil || !exists {
+			panic("expected cloned repo url key to be present in cache")
+		}
+		time, err := cache.GetExpiration(val)
+		log.Println("Cache entry expiration ", time, err)
+	}
 }
