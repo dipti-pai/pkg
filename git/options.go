@@ -19,6 +19,9 @@ package git
 import (
 	"fmt"
 	"net/url"
+
+	"github.com/fluxcd/pkg/auth/azure"
+	"github.com/fluxcd/pkg/cache"
 )
 
 const (
@@ -46,6 +49,20 @@ type AuthOptions struct {
 	Identity    []byte
 	KnownHosts  []byte
 	CAFile      []byte
+	Provider    *ProviderAuth
+}
+
+// ProviderAuth contains provider specific authentication parameters.
+type ProviderAuth struct {
+	Name  string
+	Opts  *ProviderOptions
+	Cache cache.Expirable[cache.StoreObject[string]]
+}
+
+// ProviderOptions contains options to configure various authentication
+// providers.
+type ProviderOptions struct {
+	AzureOpts []azure.ProviderOptFunc
 }
 
 // KexAlgos hosts the key exchange algorithms to be used for SSH connections.

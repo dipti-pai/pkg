@@ -25,6 +25,8 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/fluxcd/pkg/git"
+	"github.com/fluxcd/pkg/git/repository"
 	"github.com/go-git/go-billy/v5"
 	"github.com/go-git/go-billy/v5/memfs"
 	"github.com/go-git/go-billy/v5/osfs"
@@ -38,10 +40,7 @@ import (
 	"github.com/go-git/go-git/v5/storage"
 	"github.com/go-git/go-git/v5/storage/filesystem"
 	"github.com/go-git/go-git/v5/storage/memory"
-
-	authGit "github.com/fluxcd/pkg/auth/git"
-	"github.com/fluxcd/pkg/git"
-	"github.com/fluxcd/pkg/git/repository"
+	"sigs.k8s.io/controller-runtime/pkg/log"
 )
 
 func init() {
@@ -79,8 +78,6 @@ type Client struct {
 	useDefaultKnownHosts bool
 	singleBranch         bool
 	proxy                transport.ProxyOptions
-	provider             string
-	providerAuthOpts     *authGit.AuthOptions
 }
 
 var _ repository.Client = &Client{}
@@ -208,15 +205,6 @@ func WithProxy(opts transport.ProxyOptions) ClientOption {
 	}
 }
 
-// WithProvider configures the provider settings to be used for
-func WithProviderOptions(provider string, providerAuthOpts *authGit.AuthOptions) ClientOption {
-	return func(c *Client) error {
-		c.provider = provider
-		c.providerAuthOpts = providerAuthOpts
-		return nil
-	}
-}
-
 func (g *Client) Init(ctx context.Context, url, branch string) error {
 	if err := g.validateUrl(url); err != nil {
 		return err
@@ -258,30 +246,50 @@ func (g *Client) Init(ctx context.Context, url, branch string) error {
 	return nil
 }
 
-func (g *Client) CloneWithProvider(ctx context.Context, url string, cfg repository.CloneConfig) (*git.Commit, error) {
+func (g *Client) Clone(ctx context.Context, url string, cfg repository.CloneConfig) (*git.Commit, error) {
+	if err := g.validateUrl(url); err != nil {
+		return nil, err
+	}
+
 	var (
-		providerCreds *authGit.Credentials
+		providerCreds *git.Credentials
 		err           error
 	)
 
-	// if BearerToken is specified in the authOpts, do not try to fetch a token from provider
-	if g.authOpts.BearerToken == "" && g.provider != "" {
-		// TODO: Once caching is added, fetch from the cache before fetching token from provider
-		providerCreds, err = authGit.GetCredentials(ctx, url, g.provider, g.providerAuthOpts)
+	log := log.FromContext(ctx)
+	if g.authOpts.Provider != nil && g.authOpts.BearerToken == "" {
+		if g.authOpts.Provider.Cache != nil {
+			cachedAccessToken, exists, err := getObjectFromCache(g.authOpts.Provider.Cache, url)
+			if err != nil {
+				log.Error(err, "failed to get credential object from cache")
+			}
+
+			if exists {
+				g.authOpts.BearerToken = cachedAccessToken
+				commit, err := g.clone(ctx, url, cfg)
+				if err == nil { //TODO: or error != UnAuthorized
+					return commit, nil
+				}
+				log.Error(err, "failed to clone using cached access token, invalidating.")
+				invalidateObjectInCache(g.authOpts.Provider.Cache, cachedAccessToken, url)
+			}
+		}
+		providerCreds, err = git.GetCredentials(ctx, url, g.authOpts.Provider)
 		if err != nil {
 			return nil, err
 		}
 		g.authOpts.BearerToken = providerCreds.BearerToken
 	}
 
-	return g.Clone(ctx, url, cfg)
-}
-
-func (g *Client) Clone(ctx context.Context, url string, cfg repository.CloneConfig) (*git.Commit, error) {
-	if err := g.validateUrl(url); err != nil {
-		return nil, err
+	commit, err := g.clone(ctx, url, cfg)
+	if err == nil && providerCreds != nil && g.authOpts.Provider.Cache != nil {
+		cacheObject(g.authOpts.Provider.Cache, providerCreds.BearerToken, url, providerCreds.ExpiresOn)
 	}
 
+	return commit, err
+}
+
+func (g *Client) clone(ctx context.Context, url string, cfg repository.CloneConfig) (*git.Commit, error) {
 	checkoutStrat := cfg.CheckoutStrategy
 	switch {
 	case checkoutStrat.Commit != "":
