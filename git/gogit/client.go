@@ -253,28 +253,29 @@ func (g *Client) Clone(ctx context.Context, url string, cfg repository.CloneConf
 
 	var (
 		providerCreds *git.Credentials
+		expiresOn     time.Time
 		err           error
 	)
 
 	log := log.FromContext(ctx)
-	if g.authOpts.Provider != nil && g.authOpts.BearerToken == "" {
-		if g.authOpts.Provider.Cache != nil {
-			cachedAccessToken, exists, err := getObjectFromCache(g.authOpts.Provider.Cache, url)
+	if g.authOpts != nil && g.authOpts.ProviderOpts != nil && g.authOpts.BearerToken == "" {
+		if g.authOpts.Cache != nil {
+			cachedCreds, exists, err := getObjectFromCache(g.authOpts.Cache, url)
 			if err != nil {
 				log.Error(err, "failed to get credential object from cache")
 			}
 
 			if exists {
-				g.authOpts.BearerToken = cachedAccessToken
+				g.authOpts.BearerToken = cachedCreds.BearerToken
 				commit, err := g.clone(ctx, url, cfg)
 				if err == nil { //TODO: or error != UnAuthorized
 					return commit, nil
 				}
 				log.Error(err, "failed to clone using cached access token, invalidating.")
-				invalidateObjectInCache(g.authOpts.Provider.Cache, cachedAccessToken, url)
+				invalidateObjectInCache(g.authOpts.Cache, cachedCreds, url)
 			}
 		}
-		providerCreds, err = git.GetCredentials(ctx, url, g.authOpts.Provider)
+		providerCreds, expiresOn, err = git.GetCredentials(ctx, url, g.authOpts.ProviderOpts)
 		if err != nil {
 			return nil, err
 		}
@@ -282,8 +283,8 @@ func (g *Client) Clone(ctx context.Context, url string, cfg repository.CloneConf
 	}
 
 	commit, err := g.clone(ctx, url, cfg)
-	if err == nil && providerCreds != nil && g.authOpts.Provider.Cache != nil {
-		cacheObject(g.authOpts.Provider.Cache, providerCreds.BearerToken, url, providerCreds.ExpiresOn)
+	if err == nil && providerCreds != nil && g.authOpts.Cache != nil {
+		cacheObject(g.authOpts.Cache, *providerCreds, url, expiresOn)
 	}
 
 	return commit, err

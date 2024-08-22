@@ -5,6 +5,7 @@ go 1.22.4
 toolchain go1.22.5
 
 require (
+	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.12.0
 	github.com/ProtonMail/go-crypto v1.0.0
 	github.com/cyphar/filepath-securejoin v0.2.4
 	github.com/fluxcd/pkg/auth v0.0.0-00010101000000-000000000000
@@ -14,7 +15,6 @@ require (
 )
 
 require (
-	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.12.0 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.7.0 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/internal v1.9.0 // indirect
 	github.com/AzureAD/microsoft-authentication-library-for-go v1.2.2 // indirect

@@ -29,36 +29,33 @@ import (
 // repository.
 type Credentials struct {
 	BearerToken string `json:"bearerToken,omitempty"`
-	ExpiresOn   time.Time
 }
 
 // GetCredentials returns authentication credentials for accessing the provided
 // Git repository.
-func GetCredentials(ctx context.Context, url string, provider *ProviderAuth) (*Credentials, error) {
-	var creds Credentials
-
-	switch provider.Name {
+func GetCredentials(ctx context.Context, url string, providerOpts *ProviderOptions) (*Credentials, time.Time, error) {
+	var (
+		creds     Credentials
+		expiresOn time.Time
+	)
+	switch providerOpts.Name {
 	case auth.ProviderAzure:
-		var opts []azure.ProviderOptFunc
-		if provider.Opts == nil || provider.Opts.AzureOpts == nil {
+		opts := providerOpts.AzureOpts
+		if providerOpts.AzureOpts == nil {
 			opts = []azure.ProviderOptFunc{
 				azure.WithAzureDevOpsScope(),
 			}
-		} else {
-			opts = provider.Opts.AzureOpts
 		}
 		azureProvider := azure.NewProvider(opts...)
 		accessToken, err := azureProvider.GetToken(ctx)
 		if err != nil {
-			return nil, err
+			return nil, expiresOn, err
 		}
 		creds = Credentials{
 			BearerToken: accessToken.Token,
-			ExpiresOn:   accessToken.ExpiresOn,
 		}
+		return &creds, accessToken.ExpiresOn, nil
 	default:
-		return nil, fmt.Errorf("provider must be specified")
+		return nil, expiresOn, fmt.Errorf("invalid provider")
 	}
-
-	return &creds, nil
 }

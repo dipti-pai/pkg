@@ -41,27 +41,22 @@ const (
 // AuthOptions are the authentication options for the Transport of
 // communication with a remote origin.
 type AuthOptions struct {
-	Transport   TransportType
-	Host        string
-	Username    string
-	Password    string
-	BearerToken string
-	Identity    []byte
-	KnownHosts  []byte
-	CAFile      []byte
-	Provider    *ProviderAuth
-}
-
-// ProviderAuth contains provider specific authentication parameters.
-type ProviderAuth struct {
-	Name  string
-	Opts  *ProviderOptions
-	Cache cache.Expirable[cache.StoreObject[string]]
+	Transport    TransportType
+	Host         string
+	Username     string
+	Password     string
+	BearerToken  string
+	Identity     []byte
+	KnownHosts   []byte
+	CAFile       []byte
+	ProviderOpts *ProviderOptions
+	Cache        cache.Expirable[cache.StoreObject[Credentials]]
 }
 
 // ProviderOptions contains options to configure various authentication
 // providers.
 type ProviderOptions struct {
+	Name      string
 	AzureOpts []azure.ProviderOptFunc
 }
 

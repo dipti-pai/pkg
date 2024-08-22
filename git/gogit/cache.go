@@ -20,10 +20,11 @@ import (
 	"time"
 
 	"github.com/fluxcd/pkg/cache"
+	"github.com/fluxcd/pkg/git"
 )
 
 // cacheObject sets the object and its expiration info in the cache
-func cacheObject[T string](store cache.Expirable[cache.StoreObject[T]], creds T, key string, expiresAt time.Time) error {
+func cacheObject[T git.Credentials](store cache.Expirable[cache.StoreObject[T]], creds T, key string, expiresAt time.Time) error {
 	obj := cache.StoreObject[T]{
 		Object: creds,
 		Key:    key,
@@ -38,13 +39,13 @@ func cacheObject[T string](store cache.Expirable[cache.StoreObject[T]], creds T,
 }
 
 // getObjectFromCache uses the key to get the object from the cache
-func getObjectFromCache[T string](store cache.Expirable[cache.StoreObject[T]], key string) (T, bool, error) {
+func getObjectFromCache[T git.Credentials](store cache.Expirable[cache.StoreObject[T]], key string) (T, bool, error) {
 	val, exists, err := store.GetByKey(key)
 	return val.Object, exists, err
 }
 
 // invalidateObjectInCache deletes the entry from the cache
-func invalidateObjectInCache[T string](store cache.Expirable[cache.StoreObject[T]], creds T, key string) error {
+func invalidateObjectInCache[T git.Credentials](store cache.Expirable[cache.StoreObject[T]], creds T, key string) error {
 	obj := cache.StoreObject[T]{
 		Object: creds,
 		Key:    key,

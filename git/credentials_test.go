@@ -19,7 +19,9 @@ package git
 import (
 	"context"
 	"testing"
+	"time"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/cloud"
 	"github.com/fluxcd/pkg/auth"
 	"github.com/fluxcd/pkg/auth/azure"
 	. "github.com/onsi/gomega"
@@ -27,25 +29,25 @@ import (
 )
 
 func TestGetCredentials(t *testing.T) {
+	expiresAt := time.Now().UTC().Add(time.Hour)
 	tests := []struct {
 		name            string
 		url             string
-		provider        *ProviderAuth
+		provider        *ProviderOptions
 		wantCredentials *Credentials
 		wantScope       string
 	}{
 		{
 			name: "get credentials from azure",
 			url:  "https://dev.azure.com/foo/bar/_git/baz",
-			provider: &ProviderAuth{
+			provider: &ProviderOptions{
 				Name: auth.ProviderAzure,
-				Opts: &ProviderOptions{
-					AzureOpts: []azure.ProviderOptFunc{
-						azure.WithCredential(&azure.FakeTokenCredential{
-							Token: "ado-token",
-						}),
-						azure.WithAzureDevOpsScope(),
-					},
+				AzureOpts: []azure.ProviderOptFunc{
+					azure.WithCredential(&azure.FakeTokenCredential{
+						Token:     "ado-token",
+						ExpiresOn: expiresAt,
+					}),
+					azure.WithAzureDevOpsScope(),
 				},
 			},
 			wantCredentials: &Credentials{
@@ -53,16 +55,41 @@ func TestGetCredentials(t *testing.T) {
 			},
 			wantScope: azure.AzureDevOpsRestApiScope,
 		},
+		{
+			name: "get credentials from azure without scope",
+			url:  "https://dev.azure.com/foo/bar/_git/baz",
+			provider: &ProviderOptions{
+				Name: auth.ProviderAzure,
+				AzureOpts: []azure.ProviderOptFunc{
+					azure.WithCredential(&azure.FakeTokenCredential{
+						Token:     "ado-token",
+						ExpiresOn: expiresAt,
+					}),
+				},
+			},
+			wantCredentials: &Credentials{
+				BearerToken: "ado-token",
+			},
+			wantScope: cloud.AzurePublic.Services[cloud.ResourceManager].Endpoint + "/" + ".default",
+		},
+		{
+			name: "get credentials from azure",
+			url:  "https://dev.azure.com/foo/bar/_git/baz",
+			provider: &ProviderOptions{
+				Name: "dummy",
+			},
+			wantCredentials: nil,
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			g := NewWithT(t)
 			ctx := context.WithValue(context.TODO(), "scope", pointer.String(""))
-			creds, err := GetCredentials(ctx, tt.url, tt.provider)
-			g.Expect(err).ToNot(HaveOccurred())
+			creds, expiry, err := GetCredentials(ctx, tt.url, tt.provider)
 
 			if tt.wantCredentials != nil {
+				g.Expect(err).ToNot(HaveOccurred())
 				g.Expect(*creds).To(Equal(*tt.wantCredentials))
 				val := ctx.Value("scope").(*string)
 				g.Expect(*val).ToNot(BeEmpty())
@@ -71,8 +98,10 @@ func TestGetCredentials(t *testing.T) {
 				expectedCredBytes := []byte(tt.wantCredentials.BearerToken)
 				receivedCredBytes := []byte(creds.BearerToken)
 				g.Expect(receivedCredBytes).To(Equal(expectedCredBytes))
+				g.Expect(expiry).To(Equal(expiresAt))
 			} else {
 				g.Expect(creds).To(BeNil())
+				g.Expect(err).To(HaveOccurred())
 			}
 		})
 	}
