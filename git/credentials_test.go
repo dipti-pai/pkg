@@ -22,10 +22,8 @@ import (
 	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/cloud"
-	"github.com/fluxcd/pkg/auth"
 	"github.com/fluxcd/pkg/auth/azure"
 	. "github.com/onsi/gomega"
-	"k8s.io/utils/pointer"
 )
 
 func TestGetCredentials(t *testing.T) {
@@ -41,7 +39,7 @@ func TestGetCredentials(t *testing.T) {
 			name: "get credentials from azure",
 			url:  "https://dev.azure.com/foo/bar/_git/baz",
 			provider: &ProviderOptions{
-				Name: auth.ProviderAzure,
+				Name: ProviderAzure,
 				AzureOpts: []azure.ProviderOptFunc{
 					azure.WithCredential(&azure.FakeTokenCredential{
 						Token:     "ado-token",
@@ -59,7 +57,7 @@ func TestGetCredentials(t *testing.T) {
 			name: "get credentials from azure without scope",
 			url:  "https://dev.azure.com/foo/bar/_git/baz",
 			provider: &ProviderOptions{
-				Name: auth.ProviderAzure,
+				Name: ProviderAzure,
 				AzureOpts: []azure.ProviderOptFunc{
 					azure.WithCredential(&azure.FakeTokenCredential{
 						Token:     "ado-token",
@@ -85,7 +83,8 @@ func TestGetCredentials(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			g := NewWithT(t)
-			ctx := context.WithValue(context.TODO(), "scope", pointer.String(""))
+			str := ""
+			ctx := context.WithValue(context.TODO(), "scope", &str)
 			creds, expiry, err := GetCredentials(ctx, tt.url, tt.provider)
 
 			if tt.wantCredentials != nil {

@@ -40,7 +40,7 @@ import (
 	"github.com/go-git/go-git/v5/storage"
 	"github.com/go-git/go-git/v5/storage/filesystem"
 	"github.com/go-git/go-git/v5/storage/memory"
-	"sigs.k8s.io/controller-runtime/pkg/log"
+	"github.com/go-logr/logr"
 )
 
 func init() {
@@ -257,8 +257,8 @@ func (g *Client) Clone(ctx context.Context, url string, cfg repository.CloneConf
 		err           error
 	)
 
-	log := log.FromContext(ctx)
 	if g.authOpts != nil && g.authOpts.ProviderOpts != nil && g.authOpts.BearerToken == "" {
+		log := logr.FromContextOrDiscard(ctx)
 		if g.authOpts.Cache != nil {
 			cachedCreds, exists, err := getObjectFromCache(g.authOpts.Cache, url)
 			if err != nil {

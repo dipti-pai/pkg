@@ -21,8 +21,11 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/fluxcd/pkg/auth"
 	"github.com/fluxcd/pkg/auth/azure"
+)
+
+const (
+	ProviderAzure = "azure"
 )
 
 // Credentials contains authentication data needed in order to access a Git
@@ -39,7 +42,7 @@ func GetCredentials(ctx context.Context, url string, providerOpts *ProviderOptio
 		expiresOn time.Time
 	)
 	switch providerOpts.Name {
-	case auth.ProviderAzure:
+	case ProviderAzure:
 		opts := providerOpts.AzureOpts
 		if providerOpts.AzureOpts == nil {
 			opts = []azure.ProviderOptFunc{

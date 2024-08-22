@@ -11,7 +11,6 @@ require (
 	github.com/fluxcd/pkg/auth v0.0.0-00010101000000-000000000000
 	github.com/fluxcd/pkg/cache v0.0.3
 	github.com/onsi/gomega v1.34.1
-	k8s.io/utils v0.0.0-20240711033017-18e509b52bc8
 )
 
 require (
@@ -76,6 +75,7 @@ require (
 	k8s.io/client-go v0.31.0 // indirect
 	k8s.io/klog/v2 v2.130.1 // indirect
 	k8s.io/kube-openapi v0.0.0-20240228011516-70dd3763d340 // indirect
+	k8s.io/utils v0.0.0-20240711033017-18e509b52bc8 // indirect
 	sigs.k8s.io/json v0.0.0-20221116044647-bc3834ca7abd // indirect
 	sigs.k8s.io/kustomize/api v0.17.3 // indirect
 	sigs.k8s.io/kustomize/kyaml v0.17.2 // indirect

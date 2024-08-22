@@ -23,7 +23,6 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/cloud"
 	. "github.com/onsi/gomega"
-	"k8s.io/utils/pointer"
 )
 
 func TestGetProviderToken(t *testing.T) {
@@ -66,7 +65,8 @@ func TestGetProviderToken(t *testing.T) {
 			g := NewWithT(t)
 			provider := NewProvider(tt.opts...)
 			provider.credential = tt.tokenCred
-			ctx := context.WithValue(context.TODO(), "scope", pointer.String(""))
+			str := ""
+			ctx := context.WithValue(context.TODO(), "scope", &str)
 			token, err := provider.GetToken(ctx)
 
 			if tt.wantErr != nil {

@@ -6,7 +6,6 @@ require (
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.12.0
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.7.0
 	github.com/onsi/gomega v1.33.1
-	k8s.io/utils v0.0.0-20240502163921-fe8a2dddb1d0
 )
 
 require (
