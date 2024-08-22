@@ -34,7 +34,6 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
-	"github.com/fluxcd/pkg/auth"
 	"github.com/fluxcd/pkg/cache"
 	"github.com/fluxcd/pkg/git"
 	"github.com/fluxcd/pkg/git/gogit"
@@ -148,7 +147,7 @@ func checkGit(ctx context.Context) {
 		}
 		authOpts.Cache = cache
 		authOpts.ProviderOpts = &git.ProviderOptions{
-			Name: auth.ProviderAzure,
+			Name: git.ProviderAzure,
 		}
 		cloneDir, err := os.MkdirTemp("", fmt.Sprint("test-clone-", i))
 		if err != nil {

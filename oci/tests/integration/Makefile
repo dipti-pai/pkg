@@ -1,6 +1,6 @@
 GO_TEST_ARGS ?=
+GO_TEST_PREFIX ?=
 PROVIDER_ARG ?=
-CATEGORY_ARG ?=
 TEST_TIMEOUT ?= 30m
 GOARCH ?= amd64
 GOOS ?= linux
@@ -16,37 +16,31 @@ docker-build: app
 
 test:
 	docker image inspect $(TEST_IMG) >/dev/null
-	TEST_IMG=$(TEST_IMG) go test -timeout $(TEST_TIMEOUT) -v ./ $(GO_TEST_ARGS) $(PROVIDER_ARG) $(CATEGORY_ARG) --tags=integration
+	TEST_IMG=$(TEST_IMG) go test -timeout $(TEST_TIMEOUT) -v ./ $(GO_TEST_PREFIX) $(GO_TEST_ARGS) $(PROVIDER_ARG) --tags=integration
 
 test-aws:
-	$(MAKE) test PROVIDER_ARG="-provider aws" CATEGORY_ARG="-category oci"
+	$(MAKE) test PROVIDER_ARG="-provider aws"
 
 test-azure:
-	$(MAKE) test PROVIDER_ARG="-provider azure" CATEGORY_ARG=" -category all"
-
-test-azure-oci:
-	$(MAKE) test PROVIDER_ARG="-provider azure" CATEGORY_ARG=" -category oci"
+	$(MAKE) test PROVIDER_ARG="-provider azure"
 
 test-azure-git:
-	$(MAKE) test PROVIDER_ARG="-provider azure" CATEGORY_ARG=" -category git"
+	$(MAKE) test PROVIDER_ARG="-provider azure" GO_TEST_PREFIX="-run TestGit"
+
+test-azure-oci:
+	$(MAKE) test PROVIDER_ARG="-provider azure" GO_TEST_PREFIX="-run TestOci"
 
 test-gcp:
-	$(MAKE) test PROVIDER_ARG="-provider gcp" CATEGORY_ARG="-category oci"
+	$(MAKE) test PROVIDER_ARG="-provider gcp"
 
 destroy:
-	go test -timeout $(TEST_TIMEOUT) -v ./ $(GO_TEST_ARGS) $(PROVIDER_ARG) $(CATEGORY_ARG) -destroy-only --tags=integration
+	go test -timeout $(TEST_TIMEOUT) -v ./ $(GO_TEST_ARGS) $(PROVIDER_ARG) -destroy-only --tags=integration
 
 destroy-aws:
-	$(MAKE) destroy PROVIDER_ARG="-provider aws" CATEGORY_ARG="-category oci"
+	$(MAKE) destroy PROVIDER_ARG="-provider aws"
 
 destroy-azure:
-	$(MAKE) destroy PROVIDER_ARG="-provider azure" CATEGORY_ARG="-category all"
-
-destroy-azure-oci:
-	$(MAKE) destroy PROVIDER_ARG="-provider azure" CATEGORY_ARG="-category oci"
-
-destroy-azure-git:
-	$(MAKE) destroy PROVIDER_ARG="-provider azure" CATEGORY_ARG="-category git"
+	$(MAKE) destroy PROVIDER_ARG="-provider azure"
 
 destroy-gcp:
-	$(MAKE) destroy PROVIDER_ARG="-provider gcp" CATEGORY_ARG="-category oci"
+	$(MAKE) destroy PROVIDER_ARG="-provider gcp"

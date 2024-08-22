@@ -13,7 +13,6 @@ replace (
 )
 
 require (
-	github.com/fluxcd/pkg/auth v0.0.0-00010101000000-000000000000
 	github.com/fluxcd/pkg/cache v0.0.3
 	github.com/fluxcd/pkg/git v0.19.0
 	github.com/fluxcd/pkg/git/gogit v0.19.0
@@ -68,6 +67,7 @@ require (
 	github.com/emirpasic/gods v1.18.1 // indirect
 	github.com/evanphx/json-patch/v5 v5.9.0 // indirect
 	github.com/fluxcd/cli-utils v0.36.0-flux.9 // indirect
+	github.com/fluxcd/pkg/auth v0.0.0-00010101000000-000000000000 // indirect
 	github.com/fluxcd/pkg/ssh v0.13.0 // indirect
 	github.com/fluxcd/pkg/version v0.4.0 // indirect
 	github.com/fsnotify/fsnotify v1.7.0 // indirect

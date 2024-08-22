@@ -68,9 +68,6 @@ const (
 )
 
 var (
-	// supportedCategories are the test categories that can be run.
-	supportedCategories = []string{"oci", "git", "all"}
-
 	// supportedOciProviders are the providers supported by the test.
 	supportedOciProviders = []string{"aws", "azure", "gcp"}
 
@@ -80,13 +77,10 @@ var (
 	// targetProvider is the name of the kubernetes provider to test against.
 	targetProvider = flag.String("provider", "", fmt.Sprintf("name of the provider %v for oci, %v for git", supportedOciProviders, supportedGitProviders))
 
-	// category is the name of the kubernetes provider to test against.
-	category = flag.String("category", "", fmt.Sprintf("name of the category %v", supportedCategories))
-
-	// enableOci is set to true when a supported provider is specified for category oci
+	// enableOci is set to true when oci is enabled in env and a supported provider is specified.
 	enableOci bool
 
-	// enableGit is set to true when a supported provider is specified for category git
+	// enableGit is set to true when oci is enabled in env and a supported provider is specified.
 	enableGit bool
 
 	// retain flag to prevent destroy and retaining the created infrastructure.
@@ -198,41 +192,17 @@ func TestMain(m *testing.M) {
 	flag.Parse()
 	ctx := context.TODO()
 
-	// Validate the test category.
-	if *category == "" {
-		log.Fatalf("-category flag must be set to one of %v", supportedCategories)
-	}
-
-	var supportedCategory bool
-	for _, p := range supportedCategories {
-		if p == *category {
-			supportedCategory = true
-		}
-	}
-	if !supportedCategory {
-		log.Fatalf("Unsupported category %q, must be one of %v", *category, supportedCategories)
-	}
-
-	if *category == "oci" {
-		enableOci = true
-	} else if *category == "git" {
-		enableGit = true
-	} else if *category == "all" {
-		enableGit = true
-		enableOci = true
-	}
-
 	// Validate the provider.
 	if *targetProvider == "" {
 		log.Fatalf("-provider flag must be set to one of %v for git or %v for oci", supportedGitProviders, supportedOciProviders)
 	}
 
-	if enableGit {
-		validateTargetProvider(*targetProvider, supportedGitProviders)
+	if os.Getenv("TF_VAR_enable_git") == "true" && supportedProvider(*targetProvider, supportedGitProviders) {
+		enableGit = true
 	}
 
-	if enableOci {
-		validateTargetProvider(*targetProvider, supportedOciProviders)
+	if os.Getenv("TF_VAR_enable_oci") == "true" && supportedProvider(*targetProvider, supportedOciProviders) {
+		enableOci = true
 	}
 
 	enableWI = os.Getenv("TF_VAR_enable_wi") == "true"
@@ -318,47 +288,20 @@ func TestMain(m *testing.M) {
 		panic(fmt.Sprintf("Failed to get the terraform state output: %v", err))
 	}
 
-	if enableOci {
-		log.Println("OCI is enabled, push oci app and test images")
-		pushAppAndTestImagesOci(ctx, providerCfg, output, localImgs)
-	}
-	if enableGit {
-		log.Println("Git is enabled, push git app image and get test config")
-		pushAppImageGit(ctx, providerCfg, output, localImgs)
-		cfg, err = providerCfg.getGitTestConfig(output)
-	}
-
-	if enableWI {
-		if enableGit {
-			// Call provider specific API to configure permisions for the git repository
-			log.Println("Giving permissions to workload identity to access repository")
-			providerCfg.givePermissionsToRepository(output)
-		}
-
-		log.Println("Workload identity is enabled, initializing service account with annotations")
-		annotations, err := providerCfg.getWISAAnnotations(output)
-		if err != nil {
-			panic(fmt.Sprintf("Failed to get service account func for workload identity: %v", err))
-		}
-
-		if err := createWorkloadIDServiceAccount(ctx, annotations); err != nil {
-			panic(err)
-		}
-	}
+	pushAppImage(ctx, providerCfg, output, localImgs)
+	configureAdditionalInfra(ctx, providerCfg, output)
 
 	exitCode = m.Run()
 }
 
-func validateTargetProvider(targetProvider string, supportedProviders []string) {
+func supportedProvider(targetProvider string, supportedProviders []string) bool {
 	var supported bool
 	for _, p := range supportedProviders {
 		if p == targetProvider {
 			supported = true
 		}
 	}
-	if !supported {
-		log.Fatalf("Unsupported provider %q, must be one of %v", targetProvider, supportedProviders)
-	}
+	return supported
 }
 
 // getProviderConfig returns the test configuration of supported providers.
@@ -400,6 +343,10 @@ func getProviderConfig(provider string) *ProviderConfig {
 }
 
 func pushAppImage(ctx context.Context, providerCfg *ProviderConfig, tfOutput map[string]*tfjson.StateOutput, localImgs map[string]string) {
+	_, err := providerCfg.registryLogin(ctx, tfOutput)
+	if err != nil {
+		panic(fmt.Sprintf("Failed to log into registry: %v", err))
+	}
 	pushedImages, err := providerCfg.pushAppTestImages(ctx, localImgs, tfOutput)
 	if err != nil {
 		panic(fmt.Sprintf("Failed to push test images: %v", err))
@@ -416,24 +363,49 @@ func pushAppImage(ctx context.Context, providerCfg *ProviderConfig, tfOutput map
 	}
 }
 
-func pushAppAndTestImagesOci(ctx context.Context, providerCfg *ProviderConfig, tfOutput map[string]*tfjson.StateOutput, localImgs map[string]string) {
+func configureAdditionalInfra(ctx context.Context, providerCfg *ProviderConfig, tfOutput map[string]*tfjson.StateOutput) {
+	if enableOci {
+		log.Println("OCI is enabled, push oci test images")
+		pushOciTestImages(ctx, providerCfg, tfOutput)
+	}
+
+	if enableGit {
+		var err error
+		log.Println("Git is enabled, get test config")
+		cfg, err = providerCfg.getGitTestConfig(tfOutput)
+
+		if err != nil {
+			panic(fmt.Sprintf("Failed to get Git test config : %v", err))
+		}
+
+		// Call provider specific API to configure permisions for the git repository
+		log.Println("Giving permissions to workload identity to access repository")
+		providerCfg.givePermissionsToRepository(tfOutput)
+	}
+
+	if enableWI {
+		log.Println("Workload identity is enabled, initializing service account with annotations")
+		annotations, err := providerCfg.getWISAAnnotations(tfOutput)
+		if err != nil {
+			panic(fmt.Sprintf("Failed to get service account func for workload identity: %v", err))
+		}
+
+		if err := createWorkloadIDServiceAccount(ctx, annotations); err != nil {
+			panic(err)
+		}
+	}
+}
+
+func pushOciTestImages(ctx context.Context, providerCfg *ProviderConfig, tfOutput map[string]*tfjson.StateOutput) {
 	testRepos, err := providerCfg.registryLogin(ctx, tfOutput)
 	if err != nil {
 		panic(fmt.Sprintf("Failed to log into registry: %v", err))
 	}
-	pushAppImage(ctx, providerCfg, tfOutput, localImgs)
+
 	// Create and push test images.
 	if err := tftestenv.CreateAndPushImages(testRepos, testImageTags); err != nil {
 		panic(fmt.Sprintf("Failed to create and push images: %v", err))
 	}
-}
-
-func pushAppImageGit(ctx context.Context, providerCfg *ProviderConfig, tfOutput map[string]*tfjson.StateOutput, localImgs map[string]string) {
-	_, err := providerCfg.registryLogin(ctx, tfOutput)
-	if err != nil {
-		panic(fmt.Sprintf("Failed to log into registry: %v", err))
-	}
-	pushAppImage(ctx, providerCfg, tfOutput, localImgs)
 }
 
 // creatWorkloadIDServiceAccount creates the service account (name and namespace specified in the terraform
