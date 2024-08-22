@@ -134,7 +134,7 @@ func checkGit(ctx context.Context) {
 	}
 
 	cache, err := cache.New(5, cache.StoreObjectKeyFunc,
-		cache.WithCleanupInterval[cache.StoreObject[string]](10*time.Second))
+		cache.WithCleanupInterval[cache.StoreObject[git.Credentials]](10*time.Second))
 	if err != nil {
 		panic(err)
 	}
@@ -146,9 +146,9 @@ func checkGit(ctx context.Context) {
 		if err != nil {
 			panic(err)
 		}
-		authOpts.Provider = &git.ProviderAuth{
-			Name:  auth.ProviderAzure,
-			Cache: cache,
+		authOpts.Cache = cache
+		authOpts.ProviderOpts = &git.ProviderOptions{
+			Name: auth.ProviderAzure,
 		}
 		cloneDir, err := os.MkdirTemp("", fmt.Sprint("test-clone-", i))
 		if err != nil {
