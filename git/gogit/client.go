@@ -260,12 +260,14 @@ func (g *Client) Clone(ctx context.Context, url string, cfg repository.CloneConf
 	if g.authOpts != nil && g.authOpts.ProviderOpts != nil && g.authOpts.BearerToken == "" {
 		log := logr.FromContextOrDiscard(ctx)
 		if g.authOpts.Cache != nil {
+			log.Info("[DIPTI] Cache is enabled ")
 			cachedCreds, exists, err := getObjectFromCache(g.authOpts.Cache, url)
 			if err != nil {
 				log.Error(err, "failed to get credential object from cache")
 			}
 
 			if exists {
+				log.Info("[DIPTI] Cache hit")
 				g.authOpts.BearerToken = cachedCreds.BearerToken
 				commit, err := g.clone(ctx, url, cfg)
 				if err == nil { //TODO: or error != UnAuthorized
@@ -273,6 +275,8 @@ func (g *Client) Clone(ctx context.Context, url string, cfg repository.CloneConf
 				}
 				log.Error(err, "failed to clone using cached access token, invalidating.")
 				invalidateObjectInCache(g.authOpts.Cache, cachedCreds, url)
+			} else {
+				log.Info("[DIPTI] Cache miss ")
 			}
 		}
 		providerCreds, expiresOn, err = git.GetCredentials(ctx, url, g.authOpts.ProviderOpts)
