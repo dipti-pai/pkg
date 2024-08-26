@@ -58,15 +58,6 @@ resource "azurerm_federated_identity_credential" "federated-identity2" {
   depends_on = [module.aks]
 }
 
-terraform {
-  required_providers {
-    azuredevops = {
-      source  = "microsoft/azuredevops"
-      version = ">= 1.2.0"
-    }
-  }
-}
-
 provider "azuredevops" {
   org_service_url       = "https://dev.azure.com/${var.azuredevops_org}"
   personal_access_token = var.azuredevops_pat
