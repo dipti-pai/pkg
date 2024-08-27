@@ -90,3 +90,18 @@ func getWISAAnnotationsGCP(output map[string]*tfjson.StateOutput) (map[string]st
 		gcpIAMAnnotation: saEmail,
 	}, nil
 }
+
+// When implemented, getGitTestConfigGCP would return the git-specific test config for GCP
+func getGitTestConfigGCP(outputs map[string]*tfjson.StateOutput) (*gitTestConfig, error) {
+	return nil, fmt.Errorf("NotImplemented for GCP")
+}
+
+// When implemented, givePermissionsToRepositoryGCP would grant the required permissions to Google cloud source repositories
+func givePermissionsToRepositoryGCP(ctx context.Context, output map[string]*tfjson.StateOutput) (string, error) {
+	return "", fmt.Errorf("NotImplemented for GCP")
+}
+
+// When implemented, revokePermissionsToRepositoryGCP would revoke the permissions granted to Google cloud source repositories
+func revokePermissionsToRepositoryGCP(ctx context.Context, gitPermissionID string, outputs map[string]*tfjson.StateOutput) error {
+	return fmt.Errorf("NotImplemented for AWS")
+}

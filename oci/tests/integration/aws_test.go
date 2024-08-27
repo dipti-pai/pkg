@@ -98,3 +98,18 @@ func getWISAAnnotationsAWS(output map[string]*tfjson.StateOutput) (map[string]st
 		eksRoleArnAnnotation: iamARN,
 	}, nil
 }
+
+// When implemented, getGitTestConfigAws would return the git-specific test config for AWS
+func getGitTestConfigAWS(outputs map[string]*tfjson.StateOutput) (*gitTestConfig, error) {
+	return nil, fmt.Errorf("NotImplemented for AWS")
+}
+
+// When implemented, givePermissionsToRepositoryAWS would grant the required permissions to AWS CodeCommit repository
+func givePermissionsToRepositoryAWS(ctx context.Context, output map[string]*tfjson.StateOutput) (string, error) {
+	return "", fmt.Errorf("NotImplemented for AWS")
+}
+
+// When implemented, revokePermissionsToRepositoryAWS would revoke the permissions granted to AWS CodeCommit repository
+func revokePermissionsToRepositoryAWS(ctx context.Context, gitPermissionID string, outputs map[string]*tfjson.StateOutput) error {
+	return fmt.Errorf("NotImplemented for AWS")
+}
