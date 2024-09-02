@@ -2,8 +2,6 @@ module github.com/fluxcd/pkg/oci/tests/integration
 
 go 1.22.4
 
-toolchain go1.22.5
-
 replace (
 	github.com/fluxcd/pkg/cache => ../../../cache
 	github.com/fluxcd/pkg/oci => ../../

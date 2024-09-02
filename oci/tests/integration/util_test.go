@@ -41,11 +41,11 @@ const (
 
 // Clones the git repository specified in the test config and commits a config
 // map yaml into the repository
-func setUpGitRepository(ctx context.Context, tmpDir string) {
+func setUpGitRepository(ctx context.Context, tmpDir string) error {
 	c, err := getRepository(ctx, tmpDir, testGitCfg.applicationRepository, defaultBranch, testGitCfg.defaultAuthOpts)
 
 	if err != nil {
-		panic(err)
+		return err
 	}
 
 	manifest := `apiVersion: v1
@@ -56,11 +56,7 @@ metadata:
 
 	files := make(map[string]io.Reader)
 	files["configmap.yaml"] = strings.NewReader(manifest)
-	err = commitAndPushAll(ctx, c, files, branchName)
-
-	if err != nil {
-		panic(err)
-	}
+	return commitAndPushAll(ctx, c, files, branchName)
 }
 
 // Uses git package to get auth options

@@ -64,6 +64,14 @@ const (
 	// envVarWISANamespace is the name of the terraform environment variable containing
 	// the service account namespace used for workload identity.
 	envVarWISANamespace = "TF_VAR_wi_k8s_sa_ns"
+
+	// envVarAzureDevOpsOrg is the name of the terraform environment variable
+	// containing the Azure DevOps organization name.
+	envVarAzureDevOpsOrg = "TF_VAR_azuredevops_org"
+
+	// envVarAzureDevOpsPAT is the name of the terraform environment variable
+	// containing the Azure DevOps personal access token.
+	envVarAzureDevOpsPAT = "TF_VAR_azuredevops_pat"
 )
 
 var (
@@ -113,7 +121,7 @@ var (
 	testAppImage string
 
 	// wiServiceAccount is the name of the service account that will be created and annotated for workload
-	// identity. It is set from the terraform variable (`TF_VAR_k8s_serviceaccount_name`)
+	// identity. It is set from the terraform variable (`TF_VAR_wi_k8s_sa_name`)
 	wiServiceAccount string
 
 	// enableWI is set to true when the TF_VAR_enable_wi is set to "true", so the tests run for Workload Identtty
@@ -121,9 +129,6 @@ var (
 
 	// testGitCfg is a struct containing different variables needed for running git tests.
 	testGitCfg *gitTestConfig
-
-	// gitPermissionID is a string that represents the entity that was granted permissions on the git repository
-	gitPermissionID string
 )
 
 // registryLoginFunc is used to perform registry login against a provider based
@@ -142,11 +147,11 @@ type pushTestImages func(ctx context.Context, localImgs map[string]string, outpu
 // service account when workload identity is used on the cluster.
 type getWISAAnnotations func(output map[string]*tfjson.StateOutput) (map[string]string, error)
 
-// givePermissionsToRepository calls provider specific API to add additional permissions to the git repository/project
-type givePermissionsToRepository func(ctx context.Context, output map[string]*tfjson.StateOutput) (string, error)
+// grantPermissionsToGitRepository calls provider specific API to add additional permissions to the git repository/project
+type grantPermissionsToGitRepository func(ctx context.Context, cfg *gitTestConfig, output map[string]*tfjson.StateOutput) error
 
-// revokePermissionsToRepository calls provider specific API to revoke permissions to the git repository/project
-type revokePermissionsToRepository func(ctx context.Context, gitPermissionID string, output map[string]*tfjson.StateOutput) error
+// revokePermissionsToGitRepository calls provider specific API to revoke permissions to the git repository/project
+type revokePermissionsToGitRepository func(ctx context.Context, cfg *gitTestConfig, output map[string]*tfjson.StateOutput) error
 
 // getGitTestConfig gets the configuration for the tests
 type getGitTestConfig func(output map[string]*tfjson.StateOutput) (*gitTestConfig, error)
@@ -160,6 +165,10 @@ type gitTestConfig struct {
 	defaultAuthOpts                  *git.AuthOptions
 	applicationRepository            string
 	applicationRepositoryWithoutUser string
+	organization                     string
+	// permissionID is a string that represents the entity that was granted
+	// permissions on the git repository
+	permissionID string
 }
 
 // ProviderConfig is the test configuration of a supported cloud provider to run
@@ -177,10 +186,10 @@ type ProviderConfig struct {
 	// getWISAAnnotations is used to return the provider specific annotations
 	// for the service account when using workload identity.
 	getWISAAnnotations getWISAAnnotations
-	// givePermissionsToRepository is used to give the identity access to the Git repository
-	givePermissionsToRepository givePermissionsToRepository
-	// revokePermissionsToRepository is used to revoke the identity access to the Git repository
-	revokePermissionsToRepository revokePermissionsToRepository
+	// grantPermissionsToGitRepository is used to give the identity access to the Git repository
+	grantPermissionsToGitRepository grantPermissionsToGitRepository
+	// revokePermissionsToGitRepository is used to revoke the identity access to the Git repository
+	revokePermissionsToGitRepository revokePermissionsToGitRepository
 	// getGitTestConfig is used to return provider specific test configuration
 	getGitTestConfig getGitTestConfig
 }
@@ -298,15 +307,23 @@ func TestMain(m *testing.M) {
 	// Cleanup infra that depends on terraform output before exit
 	defer func() {
 		if !*retain {
-			if gitPermissionID != "" {
-				err := providerCfg.revokePermissionsToRepository(ctx, gitPermissionID, output)
+			if testGitCfg != nil && testGitCfg.permissionID != "" {
+				err := providerCfg.revokePermissionsToGitRepository(ctx, testGitCfg, output)
 				if err != nil {
-					log.Printf("Failed to revoke permissions to git repository: %v", gitPermissionID)
+					log.Printf("Failed to revoke permissions to git repository: %s", err)
 					exitCode = 1
 				}
 			}
 		}
 	}()
+
+	if enableGit {
+		// Populate the global git config.
+		testGitCfg, err = providerCfg.getGitTestConfig(output)
+		if err != nil {
+			panic(fmt.Sprintf("Failed to get git test config: %v", err))
+		}
+	}
 
 	pushAppImage(ctx, providerCfg, output, localImgs)
 	configureAdditionalInfra(ctx, providerCfg, output)
@@ -328,37 +345,37 @@ func getProviderConfig(provider string) *ProviderConfig {
 	switch provider {
 	case "aws":
 		return &ProviderConfig{
-			terraformPath:                 terraformPathAWS,
-			registryLogin:                 registryLoginECR,
-			pushAppTestImages:             pushAppTestImagesECR,
-			createKubeconfig:              createKubeconfigEKS,
-			getWISAAnnotations:            getWISAAnnotationsAWS,
-			givePermissionsToRepository:   givePermissionsToRepositoryAWS,
-			revokePermissionsToRepository: revokePermissionsToRepositoryAWS,
-			getGitTestConfig:              getGitTestConfigAWS,
+			terraformPath:                    terraformPathAWS,
+			registryLogin:                    registryLoginECR,
+			pushAppTestImages:                pushAppTestImagesECR,
+			createKubeconfig:                 createKubeconfigEKS,
+			getWISAAnnotations:               getWISAAnnotationsAWS,
+			grantPermissionsToGitRepository:  grantPermissionsToGitRepositoryAWS,
+			revokePermissionsToGitRepository: revokePermissionsToGitRepositoryAWS,
+			getGitTestConfig:                 getGitTestConfigAWS,
 		}
 	case "azure":
 		providerCfg := &ProviderConfig{
-			terraformPath:                 terraformPathAzure,
-			registryLogin:                 registryLoginACR,
-			pushAppTestImages:             pushAppTestImagesACR,
-			createKubeconfig:              createKubeConfigAKS,
-			getWISAAnnotations:            getWISAAnnotationsAzure,
-			givePermissionsToRepository:   givePermissionsToRepositoryAzure,
-			revokePermissionsToRepository: revokePermissionsToRepositoryAzure,
-			getGitTestConfig:              getGitTestConfigAzure,
+			terraformPath:                    terraformPathAzure,
+			registryLogin:                    registryLoginACR,
+			pushAppTestImages:                pushAppTestImagesACR,
+			createKubeconfig:                 createKubeConfigAKS,
+			getWISAAnnotations:               getWISAAnnotationsAzure,
+			grantPermissionsToGitRepository:  grantPermissionsToGitRepositoryAzure,
+			revokePermissionsToGitRepository: revokePermissionsToGitRepositoryAzure,
+			getGitTestConfig:                 getGitTestConfigAzure,
 		}
 		return providerCfg
 	case "gcp":
 		return &ProviderConfig{
-			terraformPath:                 terraformPathGCP,
-			registryLogin:                 registryLoginGCR,
-			pushAppTestImages:             pushAppTestImagesGCR,
-			createKubeconfig:              createKubeconfigGKE,
-			getWISAAnnotations:            getWISAAnnotationsGCP,
-			givePermissionsToRepository:   givePermissionsToRepositoryGCP,
-			revokePermissionsToRepository: revokePermissionsToRepositoryGCP,
-			getGitTestConfig:              getGitTestConfigGCP,
+			terraformPath:                    terraformPathGCP,
+			registryLogin:                    registryLoginGCR,
+			pushAppTestImages:                pushAppTestImagesGCR,
+			createKubeconfig:                 createKubeconfigGKE,
+			getWISAAnnotations:               getWISAAnnotationsGCP,
+			grantPermissionsToGitRepository:  grantPermissionsToGitRepositoryGCP,
+			revokePermissionsToGitRepository: revokePermissionsToGitRepositoryGCP,
+			getGitTestConfig:                 getGitTestConfigGCP,
 		}
 	}
 	return nil
@@ -391,19 +408,10 @@ func configureAdditionalInfra(ctx context.Context, providerCfg *ProviderConfig, 
 		pushOciTestImages(ctx, providerCfg, tfOutput)
 	}
 
-	if enableGit {
-		var err error
-		log.Println("Git is enabled, get test config")
-		testGitCfg, err = providerCfg.getGitTestConfig(tfOutput)
-
-		if err != nil {
-			panic(fmt.Sprintf("Failed to get Git test config : %v", err))
-		}
-
+	if enableGit && testGitCfg != nil {
 		// Call provider specific API to configure permisions for the git repository
-		log.Println("Giving permissions to workload identity to access repository")
-		gitPermissionID, err = providerCfg.givePermissionsToRepository(ctx, tfOutput)
-		if err != nil {
+		log.Println("Git is enabled, granting permissions to workload identity to access repository")
+		if err := providerCfg.grantPermissionsToGitRepository(ctx, testGitCfg, tfOutput); err != nil {
 			panic(fmt.Sprintf("Failed to grant permissions to repository: %v", err))
 		}
 	}

@@ -33,7 +33,9 @@ func TestGitCloneUsingProvider(t *testing.T) {
 	ctx := context.TODO()
 	tmpDir := t.TempDir()
 
-	setUpGitRepository(ctx, tmpDir)
+	if err := setUpGitRepository(ctx, tmpDir); err != nil {
+		t.Fatalf("failed setting up GitRepository: %v", err)
+	}
 	t.Run("Git oidc credential test", func(t *testing.T) {
 		args := []string{
 			"-category=git",

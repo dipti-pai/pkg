@@ -96,12 +96,12 @@ func getGitTestConfigGCP(outputs map[string]*tfjson.StateOutput) (*gitTestConfig
 	return nil, fmt.Errorf("NotImplemented for GCP")
 }
 
-// When implemented, givePermissionsToRepositoryGCP would grant the required permissions to Google cloud source repositories
-func givePermissionsToRepositoryGCP(ctx context.Context, output map[string]*tfjson.StateOutput) (string, error) {
-	return "", fmt.Errorf("NotImplemented for GCP")
+// When implemented, grantPermissionsToGitRepositoryGCP would grant the required permissions to Google cloud source repositories
+func grantPermissionsToGitRepositoryGCP(ctx context.Context, cfg *gitTestConfig, output map[string]*tfjson.StateOutput) error {
+	return fmt.Errorf("NotImplemented for GCP")
 }
 
-// When implemented, revokePermissionsToRepositoryGCP would revoke the permissions granted to Google cloud source repositories
-func revokePermissionsToRepositoryGCP(ctx context.Context, gitPermissionID string, outputs map[string]*tfjson.StateOutput) error {
-	return fmt.Errorf("NotImplemented for AWS")
+// When implemented, revokePermissionsToGitRepositoryGCP would revoke the permissions granted to Google cloud source repositories
+func revokePermissionsToGitRepositoryGCP(ctx context.Context, cfg *gitTestConfig, outputs map[string]*tfjson.StateOutput) error {
+	return fmt.Errorf("NotImplemented for GCP")
 }

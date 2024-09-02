@@ -23,6 +23,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"os"
 	"strings"
 	"time"
 
@@ -90,29 +91,26 @@ func getWISAAnnotationsAzure(output map[string]*tfjson.StateOutput) (map[string]
 	}, nil
 }
 
-// Give managed identity permissions on the azure devops project using azure-devops-go-api
-// https://github.com/microsoft/azure-devops-go-api/blob/dev/azuredevops/v7/memberentitlementmanagement/client.go#L147
+// Give managed identity permissions on the azure devops project. Refer
+// https://learn.microsoft.com/en-us/rest/api/azure/devops/memberentitlementmanagement/service-principal-entitlements/add?view=azure-devops-rest-7.1&tabs=HTTP.
 // This can be moved to terraform if/when this PR completes -
 // https://github.com/microsoft/terraform-provider-azuredevops/pull/1028
 // Returns a string representing the uuid of the entity that was granted permissions
-func givePermissionsToRepositoryAzure(ctx context.Context, outputs map[string]*tfjson.StateOutput) (string, error) {
-	// Organization, PAT, Project ID and WI ID are availble as terraform output
-	organization := outputs["azure_devops_organization"].Value.(string)
+func grantPermissionsToGitRepositoryAzure(ctx context.Context, cfg *gitTestConfig, outputs map[string]*tfjson.StateOutput) error {
 	projectId := outputs["azure_devops_project_id"].Value.(string)
-	pat := outputs["azure_devops_access_token"].Value.(string)
 	wiObjectId := outputs["workload_identity_object_id"].Value.(string)
 	var servicePrincipalID string
 
 	// Create a connection to the organization and create a new client
-	connection := azuredevops.NewPatConnection(fmt.Sprintf("https://dev.azure.com/%s", organization), pat)
+	connection := azuredevops.NewPatConnection(fmt.Sprintf("https://dev.azure.com/%s", cfg.organization), cfg.gitPat)
 	client, err := memberentitlementmanagement.NewClient(ctx, connection)
 	if err != nil {
-		return servicePrincipalID, err
+		return err
 	}
 
 	uuid, err := uuid.Parse(projectId)
 	if err != nil {
-		return servicePrincipalID, err
+		return err
 	}
 	origin := "AAD"
 	kind := "servicePrincipal"
@@ -145,7 +143,7 @@ func givePermissionsToRepositoryAzure(ctx context.Context, outputs map[string]*t
 		attempts++
 		responseValue, err := client.AddServicePrincipalEntitlement(ctx, memberentitlementmanagement.AddServicePrincipalEntitlementArgs{ServicePrincipalEntitlement: &servicePrincipal})
 		if err != nil {
-			return servicePrincipalID, err
+			return err
 		}
 
 		if !*responseValue.OperationResult.IsSuccess {
@@ -155,7 +153,7 @@ func givePermissionsToRepositoryAzure(ctx context.Context, outputs map[string]*t
 				time.Sleep(retryDelay)
 				continue
 			} else {
-				return servicePrincipalID, fmt.Errorf(errMsg)
+				return fmt.Errorf(errMsg)
 			}
 		}
 		uuid := responseValue.OperationResult.ServicePrincipalId
@@ -163,9 +161,10 @@ func givePermissionsToRepositoryAzure(ctx context.Context, outputs map[string]*t
 		break
 	}
 
-	log.Println("Added service principal entitlement", servicePrincipalID)
+	cfg.permissionID = servicePrincipalID
+	log.Println("Added service principal entitlement!")
 
-	return servicePrincipalID, nil
+	return nil
 }
 
 func getServicePrincipalEntitlementAPIErrorMessage(operationResult memberentitlementmanagement.ServicePrincipalEntitlementOperationResult) string {
@@ -180,19 +179,15 @@ func getServicePrincipalEntitlementAPIErrorMessage(operationResult memberentitle
 	return errMsg
 }
 
-// revokePermissionsToRepositoryAzure deletes the managed identity from users list in the organization using azure-devops-go-api
-// https://github.com/microsoft/azure-devops-go-api/blob/dev/azuredevops/v7/memberentitlementmanagement/client.go#L235
-func revokePermissionsToRepositoryAzure(ctx context.Context, servicePrincipalID string, outputs map[string]*tfjson.StateOutput) error {
-	uuid, err := uuid.Parse(servicePrincipalID)
+// revokePermissionsToGitRepositoryAzure deletes the managed identity from users list in the organization.
+func revokePermissionsToGitRepositoryAzure(ctx context.Context, cfg *gitTestConfig, outputs map[string]*tfjson.StateOutput) error {
+	uuid, err := uuid.Parse(cfg.permissionID)
 	if err != nil {
 		return err
 	}
-	// Organization, PAT, Project ID and WI ID are availble as terraform output
-	organization := outputs["azure_devops_organization"].Value.(string)
-	pat := outputs["azure_devops_access_token"].Value.(string)
 
 	// Create a connection to the organization and create a new client
-	connection := azuredevops.NewPatConnection(fmt.Sprintf("https://dev.azure.com/%s", organization), pat)
+	connection := azuredevops.NewPatConnection(fmt.Sprintf("https://dev.azure.com/%s", cfg.organization), cfg.gitPat)
 	client, err := memberentitlementmanagement.NewClient(ctx, connection)
 	if err != nil {
 		return err
@@ -202,6 +197,7 @@ func revokePermissionsToRepositoryAzure(ctx context.Context, servicePrincipalID 
 	if err != nil {
 		log.Fatal(err)
 	}
+	cfg.permissionID = ""
 
 	return nil
 }
@@ -211,7 +207,8 @@ func getGitTestConfigAzure(outputs map[string]*tfjson.StateOutput) (*gitTestConf
 	config := &gitTestConfig{
 		defaultGitTransport:   git.HTTP,
 		gitUsername:           git.DefaultPublicKeyAuthUser,
-		gitPat:                outputs["azure_devops_access_token"].Value.(string),
+		organization:          os.Getenv(envVarAzureDevOpsOrg),
+		gitPat:                os.Getenv(envVarAzureDevOpsPAT),
 		applicationRepository: outputs["git_repo_url"].Value.(string),
 	}
 
