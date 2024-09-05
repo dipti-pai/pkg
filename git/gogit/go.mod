@@ -17,14 +17,12 @@ require (
 	github.com/armon/go-socks5 v0.0.0-20160902184237-e75332964ef5
 	github.com/elazarl/goproxy v0.0.0-20240726154733-8b0c20506380
 	github.com/fluxcd/gitkit v0.6.0
-	github.com/fluxcd/pkg/cache v0.0.3
 	github.com/fluxcd/pkg/git v0.20.0
 	github.com/fluxcd/pkg/gittestserver v0.13.0
 	github.com/fluxcd/pkg/ssh v0.14.0
 	github.com/fluxcd/pkg/version v0.4.0
 	github.com/go-git/go-billy/v5 v5.5.0
 	github.com/go-git/go-git/v5 v5.12.0
-	github.com/go-logr/logr v1.4.2
 	github.com/onsi/gomega v1.34.1
 	golang.org/x/crypto v0.26.0
 )
@@ -47,9 +45,11 @@ require (
 	github.com/emirpasic/gods v1.18.1 // indirect
 	github.com/fluxcd/cli-utils v0.36.0-flux.9 // indirect
 	github.com/fluxcd/pkg/auth v0.0.0-00010101000000-000000000000 // indirect
+	github.com/fluxcd/pkg/cache v0.0.3 // indirect
 	github.com/fxamacker/cbor/v2 v2.7.0 // indirect
 	github.com/go-errors/errors v1.5.1 // indirect
 	github.com/go-git/gcfg v1.5.1-0.20230307220236-3a3c6141e376 // indirect
+	github.com/go-logr/logr v1.4.2 // indirect
 	github.com/go-openapi/jsonpointer v0.19.6 // indirect
 	github.com/go-openapi/jsonreference v0.20.2 // indirect
 	github.com/go-openapi/swag v0.22.4 // indirect
