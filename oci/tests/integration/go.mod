@@ -9,7 +9,7 @@ replace (
 
 require (
 	github.com/fluxcd/pkg/cache v0.0.3
-	github.com/fluxcd/pkg/git v0.19.0
+	github.com/fluxcd/pkg/git v0.20.0
 	github.com/fluxcd/pkg/git/gogit v0.19.0
 	github.com/fluxcd/pkg/oci v0.40.0
 	github.com/fluxcd/test-infra/tftestenv v0.0.0-20240805120810-5b91964f964f
@@ -64,7 +64,7 @@ require (
 	github.com/evanphx/json-patch/v5 v5.9.0 // indirect
 	github.com/fluxcd/cli-utils v0.36.0-flux.9 // indirect
 	github.com/fluxcd/pkg/auth v0.0.0-00010101000000-000000000000 // indirect
-	github.com/fluxcd/pkg/ssh v0.13.0 // indirect
+	github.com/fluxcd/pkg/ssh v0.14.0 // indirect
 	github.com/fluxcd/pkg/version v0.4.0 // indirect
 	github.com/fsnotify/fsnotify v1.7.0 // indirect
 	github.com/fxamacker/cbor/v2 v2.7.0 // indirect
@@ -114,7 +114,7 @@ require (
 	github.com/prometheus/procfs v0.15.1 // indirect
 	github.com/sergi/go-diff v1.3.2-0.20230802210424-5b0b94c5c0d3 // indirect
 	github.com/sirupsen/logrus v1.9.3 // indirect
-	github.com/skeema/knownhosts v1.2.2 // indirect
+	github.com/skeema/knownhosts v1.3.0 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
 	github.com/vbatts/tar-split v0.11.3 // indirect
 	github.com/x448/float16 v0.8.4 // indirect
@@ -155,8 +155,8 @@ require (
 	sigs.k8s.io/yaml v1.4.0 // indirect
 )
 
-replace github.com/fluxcd/pkg/auth => github.com/dipti-pai/pkg/auth v0.0.0-20240822170700-a2f84e127913
+replace github.com/fluxcd/pkg/auth => ../../../auth
 
-replace github.com/fluxcd/pkg/git/gogit => github.com/dipti-pai/pkg/git/gogit v0.0.0-20240822170700-a2f84e127913
+replace github.com/fluxcd/pkg/git/gogit => ../../../git/gogit
 
-replace github.com/fluxcd/pkg/git => github.com/dipti-pai/pkg/git v0.0.0-20240822170700-a2f84e127913
+replace github.com/fluxcd/pkg/git => ../../../git

@@ -78,6 +78,7 @@ type Client struct {
 	useDefaultKnownHosts bool
 	singleBranch         bool
 	proxy                transport.ProxyOptions
+	credentialCacheKey   string
 }
 
 var _ repository.Client = &Client{}
@@ -205,6 +206,13 @@ func WithProxy(opts transport.ProxyOptions) ClientOption {
 	}
 }
 
+func WithCredentialCacheKey(credentialCacheKey string) ClientOption {
+	return func(c *Client) error {
+		c.credentialCacheKey = credentialCacheKey
+		return nil
+	}
+}
+
 func (g *Client) Init(ctx context.Context, url, branch string) error {
 	if err := g.validateUrl(url); err != nil {
 		return err
@@ -256,13 +264,12 @@ func (g *Client) Clone(ctx context.Context, url string, cfg repository.CloneConf
 		expiresOn     time.Time
 		err           error
 	)
-
+	log := logr.FromContextOrDiscard(ctx)
 	if g.authOpts != nil && g.authOpts.ProviderOpts != nil && g.authOpts.BearerToken == "" {
-		log := logr.FromContextOrDiscard(ctx)
-		// If cache is specified, try cloning with cached credential if it exists,
-		// else fallback to fetching credentials from provider.
-		if g.authOpts.Cache != nil {
-			cachedCreds, exists, err := getObjectFromCache(g.authOpts.Cache, url)
+		// If cache is enabled and cache key is specified, try cloning with cached credential
+		// if it exists, else fallback to fetching credentials from provider.
+		if g.authOpts.Cache != nil && g.credentialCacheKey != "" {
+			cachedCreds, exists, err := getObjectFromCache(g.authOpts.Cache, g.credentialCacheKey)
 			if err != nil {
 				log.Error(err, "failed to get credential object from cache")
 			}
@@ -274,7 +281,10 @@ func (g *Client) Clone(ctx context.Context, url string, cfg repository.CloneConf
 					return commit, nil
 				}
 				log.Error(err, "failed to clone using cached access token, invalidating.")
-				invalidateObjectInCache(g.authOpts.Cache, cachedCreds, url)
+				err = invalidateObjectInCache(g.authOpts.Cache, cachedCreds, url)
+				if err != nil {
+					log.Error(err, "failed to invalidate credential object in cache")
+				}
 			}
 		}
 		providerCreds, expiresOn, err = git.GetCredentials(ctx, url, g.authOpts.ProviderOpts)
@@ -285,9 +295,12 @@ func (g *Client) Clone(ctx context.Context, url string, cfg repository.CloneConf
 	}
 
 	commit, err := g.clone(ctx, url, cfg)
-	if err == nil && providerCreds != nil && g.authOpts.Cache != nil {
-		// Cache credentials if clone was successful with provider credentials
-		cacheObject(g.authOpts.Cache, *providerCreds, url, expiresOn)
+	if err == nil && providerCreds != nil && g.authOpts.Cache != nil && g.credentialCacheKey != "" {
+		// Cache credentials (best-effort) if clone was successful with provider credentials
+		e := cacheObject(g.authOpts.Cache, *providerCreds, g.credentialCacheKey, expiresOn)
+		if e != nil {
+			log.Error(err, "failed to cache credential object")
+		}
 	}
 
 	return commit, err

@@ -41,6 +41,11 @@ func GetCredentials(ctx context.Context, url string, providerOpts *ProviderOptio
 		creds     Credentials
 		expiresOn time.Time
 	)
+
+	if providerOpts == nil {
+		return nil, expiresOn, fmt.Errorf("provider options are not specified")
+	}
+
 	switch providerOpts.Name {
 	case ProviderAzure:
 		opts := providerOpts.AzureOpts

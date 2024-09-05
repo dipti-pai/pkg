@@ -154,7 +154,7 @@ func checkGit(ctx context.Context) {
 			panic(err)
 		}
 		defer os.RemoveAll(cloneDir)
-		c, err := gogit.NewClient(cloneDir, authOpts, gogit.WithSingleBranch(false), gogit.WithDiskStorage())
+		c, err := gogit.NewClient(cloneDir, authOpts, gogit.WithSingleBranch(false), gogit.WithDiskStorage(), gogit.WithCredentialCacheKey(*repo))
 		if err != nil {
 			panic(err)
 		}
