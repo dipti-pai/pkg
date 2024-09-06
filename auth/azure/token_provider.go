@@ -18,6 +18,8 @@ package azure
 
 import (
 	"context"
+	"net/http"
+	"net/url"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/cloud"
@@ -38,6 +40,7 @@ const (
 type Provider struct {
 	credential azcore.TokenCredential
 	scopes     []string
+	proxyURL   *url.URL
 }
 
 // ProviderOptFunc enables specifying options for the provider.
@@ -68,6 +71,13 @@ func WithAzureDevOpsScope() ProviderOptFunc {
 	}
 }
 
+// WithProxyURL sets the proxy URL to use with NewDefaultAzureCredential.
+func WithProxyURL(proxyURL *url.URL) ProviderOptFunc {
+	return func(p *Provider) {
+		p.proxyURL = proxyURL
+	}
+}
+
 // GetToken requests an access token from Microsoft Entra ID by using a default
 // credential chain.
 // https://pkg.go.dev/github.com/Azure/azure-sdk-for-go/sdk/azidentity#NewDefaultAzureCredential
@@ -75,8 +85,16 @@ func WithAzureDevOpsScope() ProviderOptFunc {
 // using ProviderOptFunc.
 func (p *Provider) GetToken(ctx context.Context) (azcore.AccessToken, error) {
 	var accessToken azcore.AccessToken
+	clientOpts := &azidentity.DefaultAzureCredentialOptions{}
+
+	if p.proxyURL != nil {
+		transport := http.DefaultTransport.(*http.Transport).Clone()
+		transport.Proxy = http.ProxyURL(p.proxyURL)
+		clientOpts.ClientOptions.Transport = &http.Client{Transport: transport}
+	}
+
 	if p.credential == nil {
-		cred, err := azidentity.NewDefaultAzureCredential(nil)
+		cred, err := azidentity.NewDefaultAzureCredential(clientOpts)
 		if err != nil {
 			return accessToken, err
 		}

@@ -25,6 +25,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/fluxcd/pkg/auth/azure"
 	"github.com/fluxcd/pkg/git"
 	"github.com/fluxcd/pkg/git/repository"
 	"github.com/go-git/go-billy/v5"
@@ -250,13 +251,15 @@ func (g *Client) Clone(ctx context.Context, url string, cfg repository.CloneConf
 		return nil, err
 	}
 
-	var (
-		providerCreds *git.Credentials
-		err           error
-	)
-
 	if g.authOpts != nil && g.authOpts.ProviderOpts != nil && g.authOpts.BearerToken == "" {
-		providerCreds, _, err = git.GetCredentials(ctx, url, g.authOpts.ProviderOpts)
+		if g.proxy.URL != "" {
+			proxyURL, err := g.getProxyURL(ctx)
+			if err != nil {
+				return nil, err
+			}
+			g.authOpts.ProviderOpts.AzureOpts = append(g.authOpts.ProviderOpts.AzureOpts, azure.WithProxyURL(proxyURL))
+		}
+		providerCreds, _, err := git.GetCredentials(ctx, url, g.authOpts.ProviderOpts)
 		if err != nil {
 			return nil, err
 		}
@@ -320,6 +323,19 @@ func (g *Client) validateUrl(u string) error {
 	}
 
 	return nil
+}
+
+// getProxyURL constructs the proxy URL from url address, username and password
+func (g *Client) getProxyURL(ctx context.Context) (*url.URL, error) {
+	proxyURL, err := url.Parse(g.proxy.URL)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse proxy address '%s': %w", g.proxy.URL, err)
+	}
+
+	if g.proxy.Username != "" || g.proxy.Password != "" {
+		proxyURL.User = url.UserPassword(g.proxy.Username, g.proxy.Password)
+	}
+	return proxyURL, nil
 }
 
 func (g *Client) writeFile(path string, reader io.Reader) error {

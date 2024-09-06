@@ -17,6 +17,7 @@ require (
 	github.com/armon/go-socks5 v0.0.0-20160902184237-e75332964ef5
 	github.com/elazarl/goproxy v0.0.0-20240726154733-8b0c20506380
 	github.com/fluxcd/gitkit v0.6.0
+	github.com/fluxcd/pkg/auth v0.0.0-00010101000000-000000000000
 	github.com/fluxcd/pkg/git v0.20.0
 	github.com/fluxcd/pkg/gittestserver v0.13.0
 	github.com/fluxcd/pkg/ssh v0.14.0
@@ -38,7 +39,6 @@ require (
 	github.com/cloudflare/circl v1.3.9 // indirect
 	github.com/cyphar/filepath-securejoin v0.3.1 // indirect
 	github.com/emirpasic/gods v1.18.1 // indirect
-	github.com/fluxcd/pkg/auth v0.0.0-00010101000000-000000000000 // indirect
 	github.com/go-git/gcfg v1.5.1-0.20230307220236-3a3c6141e376 // indirect
 	github.com/gofrs/uuid v4.4.0+incompatible // indirect
 	github.com/golang-jwt/jwt/v5 v5.2.1 // indirect
@@ -57,7 +57,7 @@ require (
 	golang.org/x/mod v0.20.0 // indirect
 	golang.org/x/net v0.28.0 // indirect
 	golang.org/x/sync v0.8.0 // indirect
-	golang.org/x/sys v0.24.0 // indirect
+	golang.org/x/sys v0.25.0 // indirect
 	golang.org/x/text v0.17.0 // indirect
 	golang.org/x/tools v0.24.0 // indirect
 	gopkg.in/warnings.v0 v0.1.2 // indirect
