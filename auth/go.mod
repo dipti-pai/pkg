@@ -5,6 +5,7 @@ go 1.22.4
 require (
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.12.0
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.7.0
+	github.com/go-logr/logr v1.4.1
 	github.com/onsi/gomega v1.33.1
 )
 

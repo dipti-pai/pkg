@@ -25,6 +25,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/cloud"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
+	"github.com/go-logr/logr"
 )
 
 const (
@@ -84,6 +85,7 @@ func WithProxyURL(proxyURL *url.URL) ProviderOptFunc {
 // The default scope is to ARM endpoint in Azure Cloud. The scope is overridden
 // using ProviderOptFunc.
 func (p *Provider) GetToken(ctx context.Context) (azcore.AccessToken, error) {
+	log := logr.FromContextOrDiscard(ctx)
 	var accessToken azcore.AccessToken
 	clientOpts := &azidentity.DefaultAzureCredentialOptions{}
 
@@ -91,6 +93,8 @@ func (p *Provider) GetToken(ctx context.Context) (azcore.AccessToken, error) {
 		transport := http.DefaultTransport.(*http.Transport).Clone()
 		transport.Proxy = http.ProxyURL(p.proxyURL)
 		clientOpts.ClientOptions.Transport = &http.Client{Transport: transport}
+
+		log.Println("Proxy configuration set to url ", p.proxyURL)
 	}
 
 	if p.credential == nil {
