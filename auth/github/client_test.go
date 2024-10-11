@@ -18,11 +18,7 @@ package github
 
 import (
 	"context"
-	"crypto/rand"
-	"crypto/rsa"
-	"crypto/x509"
 	"encoding/json"
-	"encoding/pem"
 	"errors"
 	"fmt"
 	"net/http"
@@ -36,15 +32,10 @@ import (
 	corev1 "k8s.io/api/core/v1"
 )
 
-type accessToken struct {
-	Token     string    `json:"token"`
-	ExpiresAt time.Time `json:"expires_at"`
-}
-
 func TestClient_Options(t *testing.T) {
 	appID := 123
 	installationID := 456
-	pk, _ := createPrivateKey()
+	pk, _ := CreateTestPrivateKey()
 	gitHubDefaultURL := "https://api.github.com"
 	gitHubEnterpriseURL := "https://github.example.com/api/v3"
 	proxy, _ := url.Parse("http://localhost:8080")
@@ -152,14 +143,14 @@ func TestClient_GetToken(t *testing.T) {
 	expiresAt := time.Now().UTC().Add(time.Hour)
 	tests := []struct {
 		name         string
-		accessToken  *accessToken
+		accessToken  *FakeAccessToken
 		statusCode   int
 		wantErr      bool
 		wantAppToken *AppToken
 	}{
 		{
 			name: "Get valid token",
-			accessToken: &accessToken{
+			accessToken: &FakeAccessToken{
 				Token:     "access-token",
 				ExpiresAt: expiresAt,
 			},
@@ -195,7 +186,7 @@ func TestClient_GetToken(t *testing.T) {
 				srv.Close()
 			})
 
-			pk, err := createPrivateKey()
+			pk, err := CreateTestPrivateKey()
 			g.Expect(err).ToNot(HaveOccurred())
 			opts := []OptFunc{
 				WithApiURL(srv.URL), WithInstllationID(123), WithAppID(456), WithPrivateKey(pk),
@@ -214,20 +205,4 @@ func TestClient_GetToken(t *testing.T) {
 			}
 		})
 	}
-}
-
-func createPrivateKey() ([]byte, error) {
-	privatekey, err := rsa.GenerateKey(rand.Reader, 2048)
-	if err != nil {
-		return nil, err
-	}
-
-	var privateKeyBytes []byte = x509.MarshalPKCS1PrivateKey(privatekey)
-	privateKeyBlock := &pem.Block{
-		Type:  "RSA PRIVATE KEY",
-		Bytes: privateKeyBytes,
-	}
-
-	pk := pem.EncodeToMemory(privateKeyBlock)
-	return pk, nil
 }
