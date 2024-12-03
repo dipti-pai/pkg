@@ -183,7 +183,7 @@ func (c *Cache[T]) Get(key string) (*T, error) {
 	if !found {
 		c.mu.RUnlock()
 		recordRequest(c.metrics, StatusSuccess)
-		return nil, nil
+		return nil, ErrNotFound
 	}
 	if !item.expiresAt.IsZero() {
 		if item.expiresAt.Compare(time.Now()) < 0 {

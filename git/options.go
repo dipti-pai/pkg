@@ -22,6 +22,7 @@ import (
 
 	"github.com/fluxcd/pkg/auth/azure"
 	"github.com/fluxcd/pkg/auth/github"
+	"github.com/fluxcd/pkg/cache"
 )
 
 const (
@@ -50,6 +51,7 @@ type AuthOptions struct {
 	KnownHosts   []byte
 	CAFile       []byte
 	ProviderOpts *ProviderOptions
+	Cache        cache.Expirable[*Credentials]
 }
 
 // ProviderOptions contains options to configure various authentication

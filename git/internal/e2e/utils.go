@@ -17,9 +17,11 @@ limitations under the License.
 package e2e
 
 import (
+	"bytes"
 	"context"
 	"io"
 	"io/fs"
+	"log"
 	"math/rand"
 	"net/url"
 	"os"
@@ -33,6 +35,8 @@ import (
 	"github.com/go-git/go-git/v5/plumbing/object"
 	"github.com/go-git/go-git/v5/plumbing/transport"
 	"github.com/go-git/go-git/v5/plumbing/transport/http"
+	"github.com/go-logr/logr"
+	"github.com/go-logr/logr/funcr"
 	"github.com/google/uuid"
 	. "github.com/onsi/gomega"
 
@@ -45,13 +49,28 @@ var letterRunes = []rune("abcdefghijklmnopqrstuvwxyz1234567890")
 
 const timeout = time.Second * 5
 
-func testUsingClone(g *WithT, client repository.Client, repoURL *url.URL, upstreamRepo upstreamRepoInfo) {
+func testUsingClone(g *WithT, client repository.Client, repoURL *url.URL, upstreamRepo upstreamRepoInfo) string {
+	// Create a buffer to capture log output
+	var logBuffer bytes.Buffer
+	log.SetOutput(&logBuffer)
+
+	// Initialize the logger
+	logger := funcr.New(
+		func(prefix, args string) {
+			log.Printf("%s: %s", prefix, args)
+		},
+		funcr.Options{},
+	)
+
+	// Create a context with the logger
+	ctx := logr.NewContext(context.Background(), logger)
+
 	// Clone the upstream repository.
 	//
 	// NB: It may take some time for any deploy keys to be actually propagated
 	// to the backing Git provider, so we retry for a fixed amount of time.
 	g.Eventually(func() error {
-		_, err := client.Clone(context.TODO(), repoURL.String(), repository.CloneConfig{
+		_, err := client.Clone(ctx, repoURL.String(), repository.CloneConfig{
 			CheckoutStrategy: repository.CheckoutStrategy{
 				Branch: "main",
 			},
@@ -77,7 +96,7 @@ func testUsingClone(g *WithT, client repository.Client, repoURL *url.URL, upstre
 	// load balancer, and the deploy key may not be propagated to the second
 	// server yet.
 	g.Eventually(func() error {
-		return client.Push(context.TODO(), repository.PushConfig{})
+		return client.Push(ctx, repository.PushConfig{})
 	}, timeout).Should(Succeed())
 
 	headCommit, _, err := headCommitWithBranch(upstreamRepo.url, "main", upstreamRepo.username, upstreamRepo.password)
@@ -85,7 +104,7 @@ func testUsingClone(g *WithT, client repository.Client, repoURL *url.URL, upstre
 	g.Expect(headCommit).To(Equal(cc))
 
 	// Switch to a new branch.
-	err = client.SwitchBranch(context.TODO(), "new")
+	err = client.SwitchBranch(ctx, "new")
 	g.Expect(err).ToNot(HaveOccurred())
 
 	// Commit to and push new branch.
@@ -99,7 +118,7 @@ func testUsingClone(g *WithT, client repository.Client, repoURL *url.URL, upstre
 
 	// NB: at this point, sufficient time should have passed to NOT have to
 	// retry the push.
-	err = client.Push(context.TODO(), repository.PushConfig{})
+	err = client.Push(ctx, repository.PushConfig{})
 	g.Expect(err).ToNot(HaveOccurred())
 	headCommit, branch, err := headCommitWithBranch(upstreamRepo.url, "new", upstreamRepo.username, upstreamRepo.password)
 	g.Expect(err).ToNot(HaveOccurred())
@@ -107,7 +126,7 @@ func testUsingClone(g *WithT, client repository.Client, repoURL *url.URL, upstre
 	g.Expect(branch).To(Equal("new"))
 
 	// Switch to a branch behind the current branch, commit and push.
-	err = client.SwitchBranch(context.TODO(), "main")
+	err = client.SwitchBranch(ctx, "main")
 	g.Expect(err).ToNot(HaveOccurred())
 
 	_, err = client.Commit(
@@ -117,11 +136,13 @@ func testUsingClone(g *WithT, client repository.Client, repoURL *url.URL, upstre
 		}),
 	)
 	g.Expect(err).ToNot(HaveOccurred(), "third commit")
-	err = client.Push(context.TODO(), repository.PushConfig{})
+	err = client.Push(ctx, repository.PushConfig{})
 	g.Expect(err).ToNot(HaveOccurred())
 	headCommit, _, err = headCommitWithBranch(upstreamRepo.url, "new", upstreamRepo.username, upstreamRepo.password)
 	g.Expect(err).ToNot(HaveOccurred())
 	g.Expect(headCommit).To(Equal(cc))
+
+	return logBuffer.String()
 }
 
 func testUsingInit(g *WithT, client repository.Client, repoURL *url.URL, upstreamRepo upstreamRepoInfo) {

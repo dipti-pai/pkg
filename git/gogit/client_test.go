@@ -952,7 +952,9 @@ func TestProviderAuthValidations(t *testing.T) {
 				g.Expect(err).To(Equal(tt.wantValidationErr))
 			} else {
 				g.Expect(err).ToNot(HaveOccurred())
-				err = ggc.providerAuth(context.TODO())
+				_, err := ggc.providerAuthFuncWithCache(context.TODO(), func(ctx context.Context, param interface{}) (interface{}, error) {
+					return nil, nil
+				}, nil)
 				if tt.wantAuthErr != nil {
 					g.Expect(err).To(HaveOccurred())
 					g.Expect(err).To(Equal(tt.wantAuthErr))
@@ -1034,7 +1036,9 @@ func TestProviderAuth_GitHub(t *testing.T) {
 			ggc, err := NewClient(t.TempDir(), authOpts, opts...)
 			g.Expect(err).ToNot(HaveOccurred())
 
-			err = ggc.providerAuth(context.TODO())
+			_, err = ggc.providerAuthFuncWithCache(context.TODO(), func(ctx context.Context, param interface{}) (interface{}, error) {
+				return nil, nil
+			}, nil)
 			if tt.wantErr {
 				g.Expect(err).To(HaveOccurred())
 				g.Expect(authOpts.Username).To(Equal(""))

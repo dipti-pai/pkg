@@ -38,6 +38,7 @@ import (
 	"github.com/go-git/go-git/v5/storage"
 	"github.com/go-git/go-git/v5/storage/filesystem"
 	"github.com/go-git/go-git/v5/storage/memory"
+	"github.com/go-logr/logr"
 
 	"github.com/fluxcd/pkg/auth/azure"
 	"github.com/fluxcd/pkg/auth/github"
@@ -80,6 +81,7 @@ type Client struct {
 	useDefaultKnownHosts bool
 	singleBranch         bool
 	proxy                transport.ProxyOptions
+	credentialCacheKey   string
 }
 
 var _ repository.Client = &Client{}
@@ -207,6 +209,15 @@ func WithProxy(opts transport.ProxyOptions) ClientOption {
 	}
 }
 
+// WithCredentialCacheKey configures the key to be used while querying the
+// provider auth cache
+func WithCredentialCacheKey(credentialCacheKey string) ClientOption {
+	return func(c *Client) error {
+		c.credentialCacheKey = credentialCacheKey
+		return nil
+	}
+}
+
 func (g *Client) Init(ctx context.Context, url, branch string) error {
 	if err := g.validateUrlAndAuthOptions(url); err != nil {
 		return err
@@ -253,11 +264,13 @@ func (g *Client) Clone(ctx context.Context, url string, cfg repository.CloneConf
 		return nil, err
 	}
 
-	if err := g.providerAuth(ctx); err != nil {
-		return nil, err
-	}
+	log := logr.FromContextOrDiscard(ctx)
+	log.Info("in clone method")
+	result, err := g.providerAuthFuncWithCache(ctx, func(ctx context.Context, param interface{}) (interface{}, error) {
+		return g.clone(ctx, url, cfg)
+	}, cfg)
 
-	return g.clone(ctx, url, cfg)
+	return result.(*git.Commit), err
 }
 
 func (g *Client) clone(ctx context.Context, url string, cfg repository.CloneConfig) (*git.Commit, error) {
@@ -333,34 +346,93 @@ func (g *Client) hasProvider(name string) bool {
 	return g.authOpts != nil && g.authOpts.ProviderOpts != nil && g.authOpts.ProviderOpts.Name == name
 }
 
-func (g *Client) providerAuth(ctx context.Context) error {
-	if g.authOpts != nil && g.authOpts.ProviderOpts != nil && g.authOpts.BearerToken == "" &&
-		g.authOpts.Username == "" && g.authOpts.Password == "" {
-		if g.proxy.URL != "" {
-			proxyURL, err := g.proxy.FullURL()
-			if err != nil {
-				return err
-			}
-			switch g.authOpts.ProviderOpts.Name {
-			case git.ProviderAzure:
-				g.authOpts.ProviderOpts.AzureOpts = append(g.authOpts.ProviderOpts.AzureOpts, azure.WithProxyURL(proxyURL))
-			case git.ProviderGitHub:
-				g.authOpts.ProviderOpts.GitHubOpts = append(g.authOpts.ProviderOpts.GitHubOpts, github.WithProxyURL(proxyURL))
-			default:
-				return fmt.Errorf("invalid provider")
-			}
-		}
+// Function type for methods that can be passed
+type opFunc func(context.Context, interface{}) (interface{}, error)
 
-		providerCreds, _, err := git.GetCredentials(ctx, g.authOpts.ProviderOpts)
-		if err != nil {
-			return err
+func (g *Client) providerAuthFuncWithCache(ctx context.Context, op opFunc, param interface{}) (interface{}, error) {
+	var (
+		creds  *git.Credentials
+		expiry time.Time
+		err    error
+		result interface{}
+	)
+
+	log := logr.FromContextOrDiscard(ctx)
+	if g.authOpts != nil && g.authOpts.ProviderOpts != nil {
+		if g.authOpts.Cache != nil && g.credentialCacheKey != "" {
+			log.Info("trying to get credentials from cache")
+			cachedCreds, err := getCredentialFromCache[*git.Credentials](g.authOpts.Cache, g.credentialCacheKey)
+			if err != nil {
+				log.Error(err, "failed to get credential object from cache")
+			}
+			if cachedCreds != nil {
+				g.setCredentialsInAuthOptions(*cachedCreds)
+				result, err = op(ctx, param)
+				if err == nil {
+					log.Info("successfully cloned with credentials from cache")
+					return result, nil
+				}
+				log.Error(err, "failed to clone using cached access token, invalidating.")
+				err = invalidateCredentialInCache(g.authOpts.Cache, g.credentialCacheKey)
+				if err != nil {
+					log.Error(err, "failed to invalidate credential object in cache")
+				}
+			} else {
+				log.Info("credentials not found in cache")
+			}
 		}
-		g.authOpts.BearerToken = providerCreds.BearerToken
-		g.authOpts.Username = providerCreds.Username
-		g.authOpts.Password = providerCreds.Password
+		creds, expiry, err = g.getProviderCredentials(ctx)
+		if err != nil {
+			return nil, err
+		}
+		g.setCredentialsInAuthOptions(*creds)
+	}
+	result, err = op(ctx, param)
+	if err == nil && creds != nil && g.authOpts.Cache != nil && g.credentialCacheKey != "" {
+		// Cache credentials (best-effort) if clone was successful with provider credentials
+		log.Info("caching credentials after successful clone with provider creds")
+		e := cacheCredential(g.authOpts.Cache, *&creds, g.credentialCacheKey, expiry)
+		if e != nil {
+			log.Error(err, "failed to cache credential object")
+		}
 	}
 
-	return nil
+	return result, err
+}
+
+func (g *Client) getProviderCredentials(ctx context.Context) (*git.Credentials, time.Time, error) {
+	var (
+		creds  *git.Credentials
+		expiry time.Time
+	)
+
+	if g.proxy.URL != "" {
+		proxyURL, err := g.proxy.FullURL()
+		if err != nil {
+			return creds, expiry, err
+		}
+		switch g.authOpts.ProviderOpts.Name {
+		case git.ProviderAzure:
+			g.authOpts.ProviderOpts.AzureOpts = append(g.authOpts.ProviderOpts.AzureOpts, azure.WithProxyURL(proxyURL))
+		case git.ProviderGitHub:
+			g.authOpts.ProviderOpts.GitHubOpts = append(g.authOpts.ProviderOpts.GitHubOpts, github.WithProxyURL(proxyURL))
+		default:
+			return creds, expiry, fmt.Errorf("invalid provider")
+		}
+	}
+
+	creds, expiry, err := git.GetCredentials(ctx, g.authOpts.ProviderOpts)
+	if err != nil {
+		return creds, expiry, err
+	}
+
+	return creds, expiry, nil
+}
+
+func (g *Client) setCredentialsInAuthOptions(creds git.Credentials) {
+	g.authOpts.BearerToken = creds.BearerToken
+	g.authOpts.Username = creds.Username
+	g.authOpts.Password = creds.Password
 }
 
 func (g *Client) writeFile(path string, reader io.Reader) error {
@@ -442,10 +514,16 @@ func (g *Client) Push(ctx context.Context, cfg repository.PushConfig) error {
 		return git.ErrNoGitRepository
 	}
 
-	if err := g.providerAuth(ctx); err != nil {
-		return err
-	}
+	log := logr.FromContextOrDiscard(ctx)
+	log.Info("in push method")
+	_, err := g.providerAuthFuncWithCache(ctx, func(ctx context.Context, param interface{}) (interface{}, error) {
+		return nil, g.push(ctx, cfg)
+	}, cfg)
 
+	return err
+}
+
+func (g *Client) push(ctx context.Context, cfg repository.PushConfig) error {
 	authMethod, err := transportAuth(g.authOpts, g.useDefaultKnownHosts)
 	if err != nil {
 		return fmt.Errorf("failed to construct auth method with options: %w", err)
