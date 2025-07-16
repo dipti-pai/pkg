@@ -28,6 +28,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/azure-sdk-for-go/sdk/containers/azcontainerregistry"
+	"github.com/go-logr/logr"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/go-containerregistry/pkg/authn"
 	corev1 "k8s.io/api/core/v1"
@@ -74,6 +75,9 @@ func (p Provider) NewControllerToken(ctx context.Context, opts ...auth.Option) (
 	if err != nil {
 		return nil, err
 	}
+
+	logr.FromContextOrDiscard(ctx).V(1).Info("[Dipti]retrieved access token for Azure",
+		"scopes", strings.Join(o.Scopes, ","), "token: ", token.Token)
 
 	return &Token{token}, nil
 }
