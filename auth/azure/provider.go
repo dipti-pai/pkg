@@ -19,6 +19,7 @@ package azure
 import (
 	"context"
 	"fmt"
+	"os"
 	"regexp"
 	"strings"
 
@@ -128,6 +129,11 @@ func (p Provider) GetAccessTokenOptionsForArtifactRepository(artifactRepository 
 	// Azure requires scopes for getting access tokens. Here we compute
 	// the scope for ACR, which is based on the registry host.
 
+	armEndpoint := os.Getenv("AZURE_RESOURCE_MANAGER_ENDPOINT")
+	if armEndpoint != "" {
+		return []auth.Option{auth.WithScopes(armEndpoint + "/.default")}, nil
+	}
+
 	registry, err := auth.GetRegistryFromArtifactRepository(artifactRepository)
 	if err != nil {
 		return nil, err
@@ -234,7 +240,12 @@ func (Provider) GetAccessTokenOptionsForCluster(opts ...auth.Option) ([][]auth.O
 
 	// Token needed for looking up details of the cluster resource.
 	if o.ClusterAddress == "" || o.CAData == "" {
-		armScope := cloud.AzurePublic.Services[cloud.ResourceManager].Audience + "/.default"
+		armAudience := os.Getenv("AZURE_RESOURCE_MANAGER_AUDIENCE")
+		if armAudience == "" {
+			armAudience = cloud.AzurePublic.Services[cloud.ResourceManager].Audience
+		}
+
+		armScope := armAudience + "/.default"
 		armTokenOpts := []auth.Option{auth.WithScopes(armScope)}
 		atOpts = append(atOpts, armTokenOpts)
 	}
