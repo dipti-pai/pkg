@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"os"
 	"strings"
 	"time"
 
@@ -104,14 +105,20 @@ func (c *Client) getLoginAuth(ctx context.Context, registryURL string) (authn.Au
 		c.credential = cred
 	}
 
-	configurationEnvironment := getCloudConfiguration(registryURL)
+	armEndpoint := os.Getenv("AZURE_RESOURCE_MANAGER_ENDPOINT")
+	if armEndpoint == "" {
+		configurationEnvironment := getCloudConfiguration(registryURL)
+		armEndpoint = configurationEnvironment.Services[cloud.ResourceManager].Endpoint
+	}
 	// Obtain access token using the token credential.
 	armToken, err := c.credential.GetToken(ctx, policy.TokenRequestOptions{
-		Scopes: []string{configurationEnvironment.Services[cloud.ResourceManager].Endpoint + "/" + ".default"},
+		Scopes: []string{armEndpoint + "/" + ".default"},
 	})
 	if err != nil {
 		return authConfig, time.Time{}, err
 	}
+
+	logr.FromContextOrDiscard(ctx).V(1).Info("[Dipti]retrieved access token for Azure token :", string(armToken.Token))
 
 	// Obtain ACR access token using exchanger.
 	ex := newExchanger(registryURL, c.proxyURL)
