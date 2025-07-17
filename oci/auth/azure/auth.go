@@ -118,8 +118,6 @@ func (c *Client) getLoginAuth(ctx context.Context, registryURL string) (authn.Au
 		return authConfig, time.Time{}, err
 	}
 
-	logr.FromContextOrDiscard(ctx).V(1).Info("[Dipti]retrieved access token for Azure token :", string(armToken.Token))
-
 	// Obtain ACR access token using exchanger.
 	ex := newExchanger(registryURL, c.proxyURL)
 	accessToken, err := ex.ExchangeACRAccessToken(string(armToken.Token))
