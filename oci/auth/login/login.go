@@ -154,8 +154,10 @@ func (m *Manager) LoginWithExpiry(ctx context.Context, url string, ref name.Refe
 	case oci.ProviderGCP:
 		return m.gcr.LoginWithExpiry(ctx, opts.GcpAutoLogin, url, ref)
 	case oci.ProviderAzure:
+		logr.FromContextOrDiscard(ctx).Info("using auto login with azure provider")
 		return m.acr.LoginWithExpiry(ctx, opts.AzureAutoLogin, url, ref)
 	}
+	logr.FromContextOrDiscard(ctx).Info("disabling auto-login, defaulting to generic provider")
 	return nil, time.Time{}, nil
 }
 

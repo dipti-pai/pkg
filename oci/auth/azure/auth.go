@@ -151,12 +151,7 @@ func getCloudConfiguration(url string) cloud.Configuration {
 // ValidHost returns if a given host is a Azure container registry.
 // List from https://github.com/kubernetes/kubernetes/blob/v1.23.1/pkg/credentialprovider/azure/azure_credentials.go#L55
 func ValidHost(host string) bool {
-	for _, v := range []string{".azurecr.io", ".azurecr.cn", ".azurecr.de", ".azurecr.us"} {
-		if strings.HasSuffix(host, v) {
-			return true
-		}
-	}
-	return false
+	return true
 }
 
 // LoginWithExpiry attempts to get the authentication material for ACR.
