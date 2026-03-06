@@ -34,6 +34,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	ssaerrors "github.com/fluxcd/pkg/ssa/errors"
+	"github.com/fluxcd/pkg/ssa/jsondiff"
 	"github.com/fluxcd/pkg/ssa/utils"
 )
 
@@ -68,6 +69,12 @@ type ApplyOptions struct {
 	// CustomStageKinds defines a set of Kubernetes resource types that should be applied
 	// in a separate stage after CRDs and before namespaced objects.
 	CustomStageKinds map[schema.GroupKind]struct{} `json:"customStageKinds,omitempty"`
+
+	// DriftIgnoreRules defines a list of JSON pointer ignore rules that are used to
+	// remove specific fields from objects before applying them.
+	// This is useful for ignoring fields that are managed by other controllers
+	// (e.g. VPA, HPA) and would otherwise cause drift.
+	DriftIgnoreRules []jsondiff.IgnoreRule `json:"driftIgnoreRules,omitempty"`
 }
 
 // ApplyCleanupOptions defines which metadata entries are to be removed before applying objects.
@@ -133,6 +140,13 @@ func (m *ResourceManager) Apply(ctx context.Context, object *unstructured.Unstru
 	}
 
 	appliedObject := object.DeepCopy()
+
+	if existingObject.GetResourceVersion() != "" && len(opts.DriftIgnoreRules) > 0 {
+		if err := removeIgnoredFields(appliedObject, opts.DriftIgnoreRules); err != nil {
+			return nil, err
+		}
+	}
+
 	if err := m.apply(ctx, appliedObject); err != nil {
 		return nil, fmt.Errorf("%s apply failed: %w", utils.FmtUnstructured(appliedObject), err)
 	}
@@ -232,9 +246,14 @@ func (m *ResourceManager) ApplyAll(ctx context.Context, objects []*unstructured.
 		}
 	}
 
-	for _, object := range toApply {
+	for i, object := range toApply {
 		if object != nil {
 			appliedObject := object.DeepCopy()
+			if changes[i].Action != CreatedAction && len(opts.DriftIgnoreRules) > 0 {
+				if err := removeIgnoredFields(appliedObject, opts.DriftIgnoreRules); err != nil {
+					return nil, err
+				}
+			}
 			if err := m.apply(ctx, appliedObject); err != nil {
 				return nil, fmt.Errorf("%s apply failed: %w", utils.FmtUnstructured(appliedObject), err)
 			}
@@ -423,4 +442,34 @@ func (m *ResourceManager) shouldSkipApply(desiredObject *unstructured.Unstructur
 	}
 
 	return false
+}
+
+// removeIgnoredFields removes the fields matched by the given ignore rules from the object.
+// For each rule, a SelectorRegex is compiled from the rule's Selector. If the selector matches
+// the object, the rule's Paths are collected and a JSON remove patch is applied to the object.
+func removeIgnoredFields(obj *unstructured.Unstructured, rules []jsondiff.IgnoreRule) error {
+	sm := make(map[*jsondiff.SelectorRegex][]string, len(rules))
+	for _, rule := range rules {
+		sr, err := jsondiff.NewSelectorRegex(rule.Selector)
+		if err != nil {
+			return fmt.Errorf("failed to create ignore rule selector: %w", err)
+		}
+		sm[sr] = rule.Paths
+	}
+
+	var ignorePaths jsondiff.IgnorePaths
+	for sr, paths := range sm {
+		if sr.MatchUnstructured(obj) {
+			ignorePaths = append(ignorePaths, paths...)
+		}
+	}
+
+	if len(ignorePaths) > 0 {
+		patch := jsondiff.GenerateRemovePatch(ignorePaths...)
+		if err := jsondiff.ApplyPatchToUnstructured(obj, patch); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
